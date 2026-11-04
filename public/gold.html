@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gold Indicator Dashboard — ระยะยาว / ระยะสั้น</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23c99a1a'/><text x='50' y='66' font-size='44' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>Au</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Page config read by app.js: gold uses its own API, wording and gauges.
+    window.PAGE = {
+      api: '/api/gold',
+      titlePrefix: 'ทอง ',
+      changeLabel: 'จากวันก่อน',
+      heroMeta: {
+        lth: { eyebrow: 'ระยะยาว · แนวโน้ม + เศรษฐกิจมหภาค', title: 'นักลงทุนระยะยาว', hint: 'ถือ 1 ปีขึ้นไป · ดูว่าแนวโน้มและปัจจัยมหภาคหนุนแค่ไหน', cap: 'แรงหนุนระยะยาว' },
+        sth: { eyebrow: 'ระยะสั้น · ย่อตัว / ยืดตัว', title: 'จังหวะระยะสั้น', hint: 'มองไป ~20 วันทำการ · ซื้อตอนย่อ ไม่ไล่ตอนพุ่ง', cap: 'ความน่าซื้อระยะสั้น' },
+      },
+      advice: {
+        lth: {
+          'strong-buy': 'แนวโน้มและปัจจัยมหภาคหนุนเต็มที่ — ในอดีตทองขึ้นต่อใน 1 ปีถัดไปเกือบทุกครั้ง',
+          buy: 'ขาขึ้นยังดีและมีแรงหนุน — ถือและ DCA ต่อได้',
+          neutral: 'สัญญาณผสมกัน — DCA ตามปกติ ยังไม่มีข้อได้เปรียบชัดเจน',
+          sell: 'แนวโน้มอ่อน — DCA ต่อได้ แต่ยังไม่ควรเร่งซื้อก้อนใหญ่',
+          'strong-sell': 'อยู่ในขาลง — ในอดีตใช้เวลานานกว่าจะฟื้น แต่คะแนนต่ำไม่ใช่สัญญาณขายที่เชื่อถือได้',
+          na: 'ข้อมูลไม่พอสำหรับคำนวณ',
+        },
+        sth: {
+          'strong-buy': 'ย่อลึกกว่าปกติ — ในอดีต 20 วันถัดไปขึ้นราว 70% ของครั้ง เหมาะกับเงินก้อนที่รอจังหวะ',
+          buy: 'ราคาย่อตัว — ได้เปรียบเล็กน้อย ยังไม่ถึงระดับที่สถิติชัดเจน',
+          neutral: 'ไม่มีความได้เปรียบระยะสั้น — ซื้อตามแผนปกติ',
+          sell: 'ราคาเริ่มยืดตัว — ถ้ามีเงินก้อนควรรอ',
+          'strong-sell': 'ราคาพุ่งห่างเส้นค่าเฉลี่ยมาก — ไม่ควรไล่ซื้อ มักพักตัวในไม่กี่สัปดาห์',
+          na: 'ข้อมูลไม่พอสำหรับคำนวณ',
+        },
+      },
+    };
+  </script>
+  <script src="vendor/chart.umd.min.js" defer></script>
+  <script src="common.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="backtest.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo logo-gold" aria-hidden="true">Au</span>
+      <div>
+        <h1>Gold Indicator Dashboard</h1>
+        <p class="sub">แนวโน้ม · เศรษฐกิจมหภาค · จังหวะย่อ/ยืดตัว ของทองคำ พร้อมหลักฐานย้อนหลังว่าแต่ละคะแนนเชื่อได้แค่ไหน</p>
+        <nav class="nav" aria-label="เลือกสินทรัพย์">
+          <a href="/">₿ Bitcoin</a>
+          <a href="/gold.html" class="on" aria-current="page">ทองคำ</a>
+          <a href="/alts.html">เหรียญอื่น</a>
+        </nav>
+      </div>
+    </div>
+    <div class="price-box">
+      <div class="price-label">ทองคำ · USD / ทรอยออนซ์</div>
+      <div class="price" id="price">–</div>
+      <div class="price-meta"><span id="change"></span><span id="updated"></span></div>
+      <div class="net-status" id="net-status"></div>
+      <div class="thai-price" id="thai"></div>
+    </div>
+    <button id="refresh" class="btn" type="button">↻ รีเฟรช</button>
+  </header>
+
+  <main>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="heroes" aria-label="สรุปคะแนน">
+      <article class="hero" id="hero-lth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+      <article class="hero" id="hero-sth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+      <article class="hero" id="hero-verdict"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+    </section>
+
+    <section class="scale" aria-label="ความหมายของคะแนนระยะยาว">
+      <span class="scale-title">ระยะยาว (แรงหนุน)</span>
+      <span class="pill tone-strong-sell"><i></i>0–20 ขาลง</span>
+      <span class="pill tone-sell"><i></i>20–40 แนวโน้มอ่อน</span>
+      <span class="pill tone-neutral"><i></i>40–60 เป็นกลาง</span>
+      <span class="pill tone-buy"><i></i>60–80 น่าสะสม</span>
+      <span class="pill tone-strong-buy"><i></i>80–100 แนวโน้มแข็งแรงมาก</span>
+    </section>
+    <section class="scale" aria-label="ความหมายของคะแนนระยะสั้น">
+      <span class="scale-title">ระยะสั้น (จังหวะ)</span>
+      <span class="pill tone-strong-sell"><i></i>0–20 ร้อนแรง / ระวัง</span>
+      <span class="pill tone-sell"><i></i>20–40 เริ่มยืดตัว</span>
+      <span class="pill tone-neutral"><i></i>40–60 เป็นกลาง</span>
+      <span class="pill tone-buy"><i></i>60–80 ย่อตัว</span>
+      <span class="pill tone-strong-buy"><i></i>80–100 ย่อลึก น่าซื้อ</span>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>คะแนนย้อนหลังเทียบราคา</h2>
+          <p class="muted">คะแนนระยะยาวสูงในช่วงขาขึ้น คะแนนระยะสั้นพุ่งสูงตอนราคาย่อลึก</p>
+        </div>
+        <div class="range-pick">
+          <div class="seg" id="range" role="group" aria-label="ช่วงเวลา">
+            <button type="button" data-v="1y">1 ปี</button>
+            <button type="button" data-v="4y" class="on">4 ปี</button>
+            <button type="button" data-v="all">ทั้งหมด</button>
+          </div>
+          <label class="field" title="เลือกวันเพื่อดูว่าทุกเส้นเป็นอย่างไรในวันนั้น">หรือเลือกวัน <input type="date" id="range-date"></label>
+        </div>
+      </div>
+      <p class="advice range-readout" id="range-readout" hidden></p>
+      <div class="intraday" id="intraday" hidden>
+        <div class="chart-title"><span>ราคา 24 ชั่วโมงของวันนั้น (เวลาไทย)</span></div>
+        <p class="intraday-stats" id="intraday-stats"></p>
+        <div class="chart-wrap chart-intraday"><canvas id="chart-intraday" aria-label="กราฟราคาระหว่างวันของวันที่เลือก"></canvas></div>
+        <div id="intraday-score-wrap">
+          <div class="chart-title">
+            คะแนนระหว่างวัน (%) — ถ้าแท่งรายวันปิดที่ราคานั้น
+            <span class="legend">
+              <span class="key key-lth"></span>ระยะยาว (LTH)
+              <span class="key key-sth"></span>ระยะสั้น (STH)
+            </span>
+          </div>
+          <div class="chart-wrap chart-intraday-score"><canvas id="chart-intraday-score" aria-label="กราฟคะแนนระยะยาวและระยะสั้นระหว่างวัน"></canvas></div>
+        </div>
+        <p class="note" id="intraday-note"></p>
+      </div>
+      <div class="chart-title">ราคาทองคำ USD/ออนซ์ (สเกล log)</div>
+      <div class="chart-wrap chart-price"><canvas id="chart-price" aria-label="กราฟราคาทองคำ"></canvas></div>
+      <div class="chart-title">
+        คะแนน (%)
+        <span class="legend">
+          <span class="key key-lth"></span>ระยะยาว
+          <span class="key key-sth"></span>ระยะสั้น
+        </span>
+      </div>
+      <div class="chart-wrap chart-score"><canvas id="chart-score" aria-label="กราฟคะแนนระยะยาวและระยะสั้น"></canvas></div>
+      <p class="note">* คะแนนแต่ละวันคำนวณจากข้อมูลที่มีถึงวันนั้นเท่านั้น แต่เกณฑ์คะแนนถูกออกแบบโดยดูประวัติทั้งหมด จึงดูดีกว่าการใช้งานจริงอยู่บ้าง · กราฟใช้วันทำการ (ไม่มีเสาร์–อาทิตย์)</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>หลักฐานย้อนหลัง: คะแนนแต่ละช่วงตามมาด้วยอะไร</h2>
+          <p class="muted">ถ้าคะแนนใช้ได้จริง แถวคะแนนสูงควรให้ผลดีกว่าแถวคะแนนต่ำอย่างชัดเจน</p>
+        </div>
+      </div>
+      <div class="evidence-grid">
+        <div>
+          <h3 class="subhead">คะแนนระยะยาว → ราคาทอง 1 ปีถัดไป</h3>
+          <div class="table-wrap" id="evidence-lth"></div>
+        </div>
+        <div>
+          <h3 class="subhead">คะแนนระยะสั้น → ราคาทอง 20 วันทำการถัดไป</h3>
+          <div class="table-wrap" id="evidence-sth"></div>
+        </div>
+      </div>
+      <p class="note">* ระยะยาว: คะแนน 70 ขึ้นไปให้ผลดีสม่ำเสมอทั้งช่วง 2004–2014 และ 2015–2026 แต่คะแนนต่ำกว่า 60 ให้ผลไม่คงที่ (ช่วง 2015–2019 คะแนนต่ำแต่เป็นก้นก่อนขาขึ้นใหญ่) · ระยะสั้น: มีความได้เปรียบเฉพาะแถว 80 ขึ้นไป และหมดไปภายในราว 2–3 เดือน</p>
+    </section>
+
+    <section class="panel" id="bt-panel">
+      <div class="panel-head">
+        <div>
+          <h2>ทดสอบย้อนหลัง: DCA ปกติ vs DCA ตามคะแนน <span class="count" id="bt-period"></span></h2>
+          <p class="muted">กับทองคำ การซื้อมาก-น้อยตามคะแนน<b>แพ้</b> DCA ปกติในทุกปีเริ่มต้นที่ทดสอบ เพราะเงินสดที่รอจังหวะพลาดช่วงที่ทองขึ้น — ลองเปลี่ยนค่าดูเองได้</p>
+        </div>
+      </div>
+      <div class="bt-controls">
+        <label class="field">เริ่มปี <select id="bt-start"></select></label>
+        <div class="seg" id="bt-source" role="group" aria-label="คะแนนที่ใช้ตัดสินใจ">
+          <button type="button" data-v="lth" class="on">ใช้คะแนนระยะยาว</button>
+          <button type="button" data-v="sth">ระยะสั้น</button>
+        </div>
+        <div class="seg" id="bt-freq" role="group" aria-label="ความถี่">
+          <button type="button" data-v="monthly" class="on">รายเดือน</button>
+          <button type="button" data-v="weekly">ทุก 7 วันทำการ</button>
+        </div>
+        <label class="field">เงินต่องวด ($) <input id="bt-amount" type="number" min="1" step="10" value="100"></label>
+        <label class="field check"><input id="bt-sell" type="checkbox"> ทยอยขายเมื่อคะแนน &lt; 20</label>
+      </div>
+      <div class="bt-rules" id="bt-rules"></div>
+      <div class="stats" id="bt-stats"></div>
+      <div class="bt-grid">
+        <div class="table-wrap" id="bt-table"></div>
+        <div>
+          <div class="chart-title">
+            มูลค่าพอร์ต
+            <span class="legend">
+              <span class="key key-invested"></span>เงินที่เติม
+              <span class="key key-plain"></span>DCA ปกติ
+              <span class="key key-smart"></span>DCA ตามคะแนน
+            </span>
+          </div>
+          <div class="chart-wrap chart-bt"><canvas id="chart-bt" aria-label="กราฟมูลค่าพอร์ตย้อนหลัง"></canvas></div>
+        </div>
+      </div>
+      <p class="note">* ทั้งสองแบบเติมเงินเท่ากันทุกงวด เงินที่ยังไม่ได้ซื้อเก็บเป็นเงินสด (ไม่คิดดอกเบี้ย) · ไม่รวมค่าธรรมเนียม ส่วนต่างราคาซื้อ-ขายของร้านทอง และภาษี · ทยอยขาย = ขาย 2% ของทองที่ถือต่อเดือนเมื่อคะแนนต่ำกว่า 20 · ราคาที่ใช้คือทองคำตลาดโลก (COMEX) เป็นดอลลาร์ ไม่ใช่ราคาทองไทย ซึ่งขึ้นกับค่าเงินบาทด้วย</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>ตัวชี้วัดทั้งหมด <span class="count" id="ind-count"></span></h2>
+          <p class="muted">ระยะยาว: คะแนนสูง = แนวโน้ม/มหภาคหนุน · ระยะสั้น: คะแนนสูง = ราคาย่อตัว น่าซื้อกว่าปกติ</p>
+        </div>
+        <div class="controls">
+          <div class="seg" id="horizon" role="group" aria-label="กรองตามระยะเวลา">
+            <button type="button" data-v="all" class="on">ทั้งหมด</button>
+            <button type="button" data-v="lth">ระยะยาว</button>
+            <button type="button" data-v="sth">ระยะสั้น</button>
+          </div>
+          <div class="seg" id="view" role="group" aria-label="รูปแบบการแสดงผล">
+            <button type="button" data-v="cards" class="on">การ์ด</button>
+            <button type="button" data-v="table">ตาราง</button>
+          </div>
+        </div>
+      </div>
+      <div id="cards" class="cards"></div>
+      <div id="table" class="table-wrap" hidden></div>
+    </section>
+
+    <section class="panel method">
+      <h2>ทำไมทองคำคิดคะแนนต่างจาก Bitcoin</h2>
+      <ol>
+        <li><b>ทองคำวิ่งตามแนวโน้ม ไม่ได้แกว่งเป็นรอบแบบ Bitcoin</b> เมื่อทดสอบกับข้อมูลปี 2003–2026 ตัววัดแบบ "ราคาแพงเทียบค่าเฉลี่ย" ไม่ได้ตามมาด้วยผลตอบแทนที่แย่ลง — กลับดีขึ้น เพราะทองขาขึ้นมักขึ้นต่อได้หลายปี</li>
+        <li><b>คะแนนระยะยาว = แนวโน้ม + เศรษฐกิจมหภาค</b> โมเมนตัม 12 เดือน, ราคาเทียบเส้น 200 วันและ 200 สัปดาห์, ระยะห่างจากจุดสูงสุด, Real Yield และอัตราส่วนทอง/เงิน คะแนนสูงแปลว่ามีแรงหนุน ไม่ได้แปลว่า "ถูก"</li>
+        <li><b>คะแนนระยะสั้น = สวนทาง แต่ใช้ได้เฉพาะตอนสุดขั้ว</b> ระยะห่างจากเส้น 50 วัน, RSI, Bollinger %B: ซื้อตอนย่อลึกได้เปรียบเล็กน้อยในราว 1 เดือน ส่วนช่วงกลาง ๆ ไม่มีข้อได้เปรียบ</li>
+        <li><b>ตัวที่ไม่นำมาคิดคะแนน</b> ราคาทองหลังหักเงินเฟ้อ และสถานะกองทุน (COT) แสดงเป็นข้อมูลประกอบ เพราะทดสอบแล้วใช้จับจังหวะไม่ได้หรือให้ผลไม่คงที่</li>
+        <li><b>ข้อจำกัด</b> ข้อมูลย้อนหลัง ~23 ปี ครอบคลุมรอบใหญ่ของทองเพียงไม่กี่รอบ (ขาขึ้น 2003–2011, ขาลง 2011–2015, ขาขึ้น 2016–ปัจจุบัน) ความสัมพันธ์จึงมั่นใจได้น้อยกว่าของ Bitcoin ที่มีหลายรอบ</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>แหล่งข้อมูล</h2>
+      <ul class="sources" id="sources"></ul>
+    </section>
+
+    <p class="disclaimer">⚠️ เว็บนี้เป็นเครื่องมือรวบรวมข้อมูลเชิงสถิติเพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน ผลในอดีตไม่รับประกันผลในอนาคต ราคาทองไทยขึ้นกับค่าเงินบาทและส่วนต่างราคาของร้านทองด้วย โปรดศึกษาและบริหารความเสี่ยงด้วยตัวเอง</p>
+  </main>
+</body>
+</html>

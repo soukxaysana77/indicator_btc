@@ -1,0 +1,12 @@
+# Downloaded data: rebuilt automatically the first time the server runs online
+cache/
+
+# SoSoValue API key: never commit it
+sosovalue-key.txt
+sosovalue-key.txt.txt
+
+# Local tool settings
+.claude/
+
+node_modules/
+*.log

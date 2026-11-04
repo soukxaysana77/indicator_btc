@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BTC Indicator Dashboard — LTH / STH</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23f7931a'/><text x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>₿</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/chart.umd.min.js" defer></script>
+  <script src="common.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="backtest.js" defer></script>
+  <script src="seasonal.js" defer></script>
+  <script src="etf.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">₿</span>
+      <div>
+        <h1>Bitcoin Indicator Dashboard</h1>
+        <p class="sub">รวมสัญญาณ On-chain · วัฏจักรราคา · โมเมนตัม · Sentiment แล้วสรุปเป็น % ความน่าลงทุน</p>
+        <nav class="nav" aria-label="เลือกสินทรัพย์">
+          <a href="/" class="on" aria-current="page">₿ Bitcoin</a>
+          <a href="/gold.html">ทองคำ</a>
+          <a href="/alts.html">เหรียญอื่น</a>
+        </nav>
+      </div>
+    </div>
+    <div class="price-box">
+      <div class="price-label">BTC / USD</div>
+      <div class="price" id="price">–</div>
+      <div class="price-meta"><span id="change"></span><span id="updated"></span></div>
+      <div class="net-status" id="net-status"></div>
+    </div>
+    <button id="refresh" class="btn" type="button">↻ รีเฟรช</button>
+  </header>
+
+  <main>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="heroes" aria-label="สรุปคะแนน">
+      <article class="hero" id="hero-lth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+      <article class="hero" id="hero-sth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+      <article class="hero" id="hero-macro"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+    </section>
+
+    <section class="scale" aria-label="ความหมายของคะแนน">
+      <span class="scale-title">ความหมายของ %</span>
+      <span class="pill tone-strong-sell"><i></i>0–20 ร้อนแรง / ระวัง</span>
+      <span class="pill tone-sell"><i></i>20–40 ค่อนข้างแพง</span>
+      <span class="pill tone-neutral"><i></i>40–60 เป็นกลาง</span>
+      <span class="pill tone-buy"><i></i>60–80 น่าสะสม</span>
+      <span class="pill tone-strong-buy"><i></i>80–100 น่าซื้อสะสมมาก</span>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>คะแนนย้อนหลังเทียบราคา</h2>
+          <p class="muted">ดูว่าคะแนนเคยให้สัญญาณอย่างไรที่ยอดและก้นของแต่ละรอบ</p>
+        </div>
+        <div class="range-pick">
+          <div class="seg" id="range" role="group" aria-label="ช่วงเวลา">
+            <button type="button" data-v="1y">1 ปี</button>
+            <button type="button" data-v="4y" class="on">4 ปี</button>
+            <button type="button" data-v="all">ทั้งหมด</button>
+          </div>
+          <label class="field" title="เลือกวันเพื่อดูว่าทุกเส้นเป็นอย่างไรในวันนั้น">หรือเลือกวัน <input type="date" id="range-date"></label>
+        </div>
+      </div>
+      <p class="advice range-readout" id="range-readout" hidden></p>
+      <div class="intraday" id="intraday" hidden>
+        <div class="chart-title"><span>ราคา 24 ชั่วโมงของวันนั้น (เวลาไทย)</span></div>
+        <p class="intraday-stats" id="intraday-stats"></p>
+        <div class="chart-wrap chart-intraday"><canvas id="chart-intraday" aria-label="กราฟราคาระหว่างวันของวันที่เลือก"></canvas></div>
+        <div id="intraday-score-wrap">
+          <div class="chart-title">
+            คะแนนระหว่างวัน (%) — ถ้าแท่งรายวันปิดที่ราคานั้น
+            <span class="legend">
+              <span class="key key-lth"></span>ระยะยาว (LTH)
+              <span class="key key-sth"></span>ระยะสั้น (STH)
+            </span>
+          </div>
+          <div class="chart-wrap chart-intraday-score"><canvas id="chart-intraday-score" aria-label="กราฟคะแนนระยะยาวและระยะสั้นระหว่างวัน"></canvas></div>
+        </div>
+        <p class="note" id="intraday-note"></p>
+      </div>
+      <div class="chart-title">ราคา BTC (สเกล log)</div>
+      <div class="chart-wrap chart-price"><canvas id="chart-price" aria-label="กราฟราคา Bitcoin"></canvas></div>
+      <div class="chart-title">
+        คะแนนความน่าลงทุน (%)
+        <span class="legend">
+          <span class="key key-lth"></span>ระยะยาว (LTH)
+          <span class="key key-sth"></span>ระยะสั้น (STH)
+        </span>
+      </div>
+      <div class="chart-wrap chart-score"><canvas id="chart-score" aria-label="กราฟคะแนน LTH และ STH"></canvas></div>
+      <p class="note">* คะแนนแต่ละวันคำนวณจากข้อมูลที่มีถึงวันนั้นเท่านั้น (รวม Power Law และการเทียบย้อนหลัง 8 ปี) แต่เกณฑ์คะแนนถูกออกแบบโดยดูประวัติทั้งหมด จึงดูดีกว่าการใช้งานจริงอยู่บ้าง</p>
+    </section>
+
+    <section class="panel" id="cost-panel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>เส้นเช็คราคา: ราคาเทียบเส้นต้นทุนสำคัญ <span class="count" id="cost-asof"></span></h2>
+          <p class="muted">ราคาอยู่เหนือหรือใต้ต้นทุนเฉลี่ยของผู้ถือกลุ่มต่าง ๆ และเส้น $70,000 ที่ Michael Howell ใช้เช็คมุมมองสภาพคล่องของเขา · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนน</p>
+        </div>
+        <div class="seg" id="cost-range" role="group" aria-label="ช่วงเวลา">
+          <button type="button" data-v="1y" class="on">1 ปี</button>
+          <button type="button" data-v="2y">2 ปี</button>
+          <button type="button" data-v="4y">4 ปี</button>
+        </div>
+      </div>
+      <p class="advice" id="cost-summary"></p>
+      <div class="stats" id="cost-stats"></div>
+      <div class="chart-title">
+        ราคา BTC เทียบเส้นต้นทุน (สเกล log)
+        <span class="legend">
+          <span class="key key-price"></span>ราคา
+          <span class="key key-sth"></span>ต้นทุนผู้ถือระยะสั้น
+          <span class="key key-lth"></span>True Market Mean
+          <span class="key key-howell"></span>$70,000 (Howell)
+        </span>
+      </div>
+      <div class="chart-wrap chart-price"><canvas id="chart-cost" aria-label="กราฟราคา BTC เทียบเส้นต้นทุน"></canvas></div>
+      <p class="note"><b>วิธีอ่าน:</b> ราคาอยู่เหนือเส้น = คนกลุ่มนั้นโดยเฉลี่ยมีกำไร · ราคาหลุดลงไปใต้เส้น = โดยเฉลี่ยขาดทุน · ข้อมูลต้นทุนจาก Bitcoin Research Kit จึงอาจต่างจากตัวเลขในการ์ด STH-MVRV (bitcoin-data.com) เล็กน้อย · ไม่นำไปคิดคะแนน เพราะต้นทุนผู้ถือระยะสั้นถูกนับในคะแนน STH ผ่าน STH-MVRV แล้ว และ True Market Mean เคลื่อนไหวแทบเหมือน MVRV (ทดสอบ 2012–2026) · เส้น $70,000 คือเส้นเช็คทฤษฎีของ Howell ไม่ใช่จุดซื้อขาย</p>
+    </section>
+
+    <section class="panel" id="bt-panel">
+      <div class="panel-head">
+        <div>
+          <h2>ทดสอบย้อนหลัง: DCA ปกติ vs DCA ตามคะแนน <span class="count" id="bt-period"></span></h2>
+          <p class="muted">ทั้งสองแบบเติมเงินเท่ากันทุกงวด — DCA ตามคะแนนจะซื้อมากตอนคะแนนสูง ซื้อน้อยตอนคะแนนต่ำ แล้วเก็บเงินที่เหลือเป็นเงินสดไว้ใช้รอบถัดไป</p>
+        </div>
+      </div>
+      <div class="bt-controls">
+        <label class="field">เริ่มปี <select id="bt-start"></select></label>
+        <div class="seg" id="bt-source" role="group" aria-label="คะแนนที่ใช้ตัดสินใจ">
+          <button type="button" data-v="lth" class="on">ใช้คะแนน LTH</button>
+          <button type="button" data-v="sth">STH</button>
+          <button type="button" data-v="lthmacro">LTH + Macro</button>
+        </div>
+        <div class="seg" id="bt-freq" role="group" aria-label="ความถี่">
+          <button type="button" data-v="monthly" class="on">รายเดือน</button>
+          <button type="button" data-v="weekly">รายสัปดาห์</button>
+        </div>
+        <label class="field">เงินต่องวด ($) <input id="bt-amount" type="number" min="1" step="10" value="100"></label>
+        <label class="field check"><input id="bt-sell" type="checkbox"> ทยอยขายเมื่อคะแนน &lt; 20</label>
+      </div>
+      <div class="bt-rules" id="bt-rules"></div>
+      <div class="stats" id="bt-stats"></div>
+      <div class="bt-grid">
+        <div class="table-wrap" id="bt-table"></div>
+        <div>
+          <div class="chart-title">
+            มูลค่าพอร์ต
+            <span class="legend">
+              <span class="key key-invested"></span>เงินที่เติม
+              <span class="key key-plain"></span>DCA ปกติ
+              <span class="key key-smart"></span>DCA ตามคะแนน
+            </span>
+          </div>
+          <div class="chart-wrap chart-bt"><canvas id="chart-bt" aria-label="กราฟมูลค่าพอร์ตย้อนหลัง"></canvas></div>
+        </div>
+      </div>
+      <p class="note">* คะแนนย้อนหลังคำนวณจากข้อมูลที่มีถึงวันนั้นเท่านั้น แต่เกณฑ์คะแนนถูกออกแบบโดยดูประวัติทั้งหมด ผลในอนาคตจึงอาจด้อยกว่านี้ · ไม่รวมค่าธรรมเนียม ภาษี และดอกเบี้ยของเงินสด · "LTH + Macro" = LTH 70% + Macro 30% (มีข้อมูล Macro ตั้งแต่ 2014) · คะแนน STH แกว่งเร็ว ไม่เหมาะกับ DCA ระยะยาว · ทยอยขาย = ขาย 2% ของ BTC ที่ถือต่อเดือน (0.5% ต่อสัปดาห์) — ⚠ ในอดีตการขายตามคะแนนทำให้ผลแย่ลงถ้าเริ่มก่อนปี 2018 เพราะขายเร็วเกินไปในรอบ 2017 และ 2021</p>
+    </section>
+
+    <section class="panel" id="season-panel">
+      <div class="panel-head">
+        <div>
+          <h2>ช่วงเดียวกันของทุกปี <span class="count" id="season-period"></span></h2>
+          <p class="muted">เลือกวันเริ่มและวันสิ้นสุด แล้วดูว่าช่วงนั้นของแต่ละปี BTC ขึ้นหรือลงเท่าไร เช่น กลางเดือนธันวาคมถึงสิ้นปี</p>
+        </div>
+      </div>
+      <div class="bt-controls">
+        <span class="field">ตั้งแต่ <select id="season-d1" aria-label="วันที่เริ่ม"></select><select id="season-m1" aria-label="เดือนที่เริ่ม"></select></span>
+        <span class="field">ถึง <select id="season-d2" aria-label="วันที่สิ้นสุด"></select><select id="season-m2" aria-label="เดือนที่สิ้นสุด"></select></span>
+        <div class="seg" id="season-preset" role="group" aria-label="ช่วงที่ใช้บ่อย">
+          <button type="button" data-v="12-15_12-31">ครึ่งหลัง ธ.ค.</button>
+          <button type="button" data-v="12-1_12-31">ทั้งเดือน ธ.ค.</button>
+          <button type="button" data-v="12-15_1-15">กลาง ธ.ค. → กลาง ม.ค.</button>
+          <button type="button" data-v="9-1_9-30">ก.ย.</button>
+          <button type="button" data-v="10-1_10-31">ต.ค.</button>
+        </div>
+      </div>
+      <div class="stats" id="season-stats"></div>
+      <p class="macro-level" id="season-compare"></p>
+      <div class="bt-grid">
+        <div>
+          <div class="chart-title">เปลี่ยนแปลงในช่วงนี้ของแต่ละปี (แท่งสีเทา = ปีที่ยังไม่จบ)</div>
+          <div class="chart-wrap chart-season"><canvas id="chart-season" aria-label="กราฟแท่งการเปลี่ยนแปลงของราคา BTC ในช่วงที่เลือกของแต่ละปี"></canvas></div>
+        </div>
+        <div class="table-wrap" id="season-table"></div>
+      </div>
+      <p class="note">* ราคาเริ่ม = ราคาปิดของวันก่อนวันเริ่ม (คือราคาตอนต้นวันที่เริ่ม) · ราคาสิ้นสุด = ราคาปิดของวันสุดท้าย · ถ้าวันสิ้นสุดอยู่ก่อนวันเริ่มในปฏิทิน จะนับข้ามไปปีถัดไป · <b>ค่ากลาง</b> บอกปีทั่วไปได้ดีกว่าค่าเฉลี่ย เพราะ BTC มีบางปีที่ขึ้นแรงมาก · ช่วงเวลาตามฤดูกาลเป็นแค่ข้อสังเกต ไม่ได้คิดในคะแนน ใช้ประกอบกับคะแนน LTH (คอลัมน์ขวาสุด) ดีกว่าใช้เดี่ยว ๆ</p>
+    </section>
+
+    <section class="panel" id="macro-panel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>สภาพคล่องโลก (Global Liquidity) นำราคา BTC ~3 เดือน</h2>
+          <p class="muted">เส้นสภาพคล่องถูกเลื่อนไปข้างหน้า 13 สัปดาห์ ช่วงแรเงาด้านขวาคือสัญญาณล่วงหน้าที่ราคายังมาไม่ถึง</p>
+        </div>
+        <div class="seg" id="macro-range" role="group" aria-label="ช่วงเวลา">
+          <button type="button" data-v="2y">2 ปี</button>
+          <button type="button" data-v="5y" class="on">5 ปี</button>
+          <button type="button" data-v="all">ทั้งหมด</button>
+        </div>
+      </div>
+      <div class="chart-title">ราคา BTC รายสัปดาห์ (สเกล log)</div>
+      <div class="chart-wrap chart-price"><canvas id="chart-btc-weekly" aria-label="กราฟราคา BTC รายสัปดาห์"></canvas></div>
+      <div class="chart-title">
+        สภาพคล่องโลก: เปลี่ยนแปลง 13 สัปดาห์ (%)
+        <span class="legend"><span class="key key-macro"></span>เลื่อนไปข้างหน้า 13 สัปดาห์</span>
+      </div>
+      <div class="chart-wrap chart-score"><canvas id="chart-liq" aria-label="กราฟการเปลี่ยนแปลงสภาพคล่องโลก"></canvas></div>
+
+      <h3 class="subhead">13 สัปดาห์ข้างหน้า</h3>
+      <div class="stats" id="macro-pipeline"></div>
+
+      <h3 class="subhead">ใครเติม ใครดูดเงิน: ท่อสภาพคล่องของสหรัฐฯ ใน 13 สัปดาห์ล่าสุด <span class="count" id="macro-pipes-range"></span></h3>
+      <div class="stats" id="macro-pipes"></div>
+
+      <div id="fed-bills" hidden>
+        <h3 class="subhead">เฟดเติมเงินจริงเดือนละเท่าไร: การซื้อตั๋วเงินคลัง ("Not QE") <span class="count" id="fed-bills-asof"></span></h3>
+        <p class="advice" id="fed-bills-summary"></p>
+        <div class="stats" id="fed-bills-stats"></div>
+        <div class="chart-title">
+          พันล้านดอลลาร์ต่อเดือน
+          <span class="legend">
+            <span class="key key-bills"></span>ซื้อตั๋วเงินคลัง (เดือนนั้น)
+            <span class="key key-macro"></span>เติมสุทธิจริง (เฉลี่ย 3 เดือน)
+          </span>
+        </div>
+        <div class="chart-wrap chart-score"><canvas id="chart-fed-bills" aria-label="กราฟการซื้อตั๋วเงินคลังของเฟดรายเดือน"></canvas></div>
+        <p class="note"><b>วิธีอ่านกราฟ:</b> แท่งสีเทา = เงินที่เฟดใช้ซื้อตั๋วเงินคลังในเดือนนั้น (ตัวเลขที่ข่าวพูดถึง) · เส้นสีเขียว = เงินใหม่ที่เข้าระบบจริง — อยู่เหนือ $0 คือเฟดเติมเงิน ต่ำกว่า $0 คือเฟดดึงเงินออก · ดูค่าล่าสุดที่ปลายขวาของเส้นสีเขียว หรือที่กล่อง "เติมเงินสุทธิจริง" ด้านบน</p>
+        <p class="note">* เฟดเรียกการซื้อนี้ว่า Reserve Management Purchases คือซื้อเพื่อรักษาระดับเงินสำรองของธนาคาร ไม่ได้ตั้งใจกดดอกเบี้ยระยะยาวแบบ QE ตลาดจึงเรียกว่า "Not QE" · เติมสุทธิจริง = การเปลี่ยนแปลงของหลักทรัพย์ทั้งหมดที่เฟดถือ (ตั๋วเงินคลังที่ซื้อ หักด้วย MBS และพันธบัตรที่ครบกำหนด) · ข้อมูลรายสัปดาห์จาก FRED ยอดรายเดือนวัดถึงวันพุธสุดท้ายของเดือน · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนนเพิ่ม เพราะขนาดงบดุลเฟดอยู่ในคะแนน Global Liquidity แล้ว</p>
+      </div>
+
+      <h3 class="subhead">หลักฐานย้อนหลัง <span class="count" id="macro-since"></span></h3>
+      <div class="stats" id="macro-stats"></div>
+      <p class="note"><b>วิธีอ่านตาราง:</b> คะแนน Macro ตอนนี้ดูได้ที่มาตรวัด "สภาพคล่องโลก (Macro)" ด้านบนสุดของหน้า · ตารางนี้บอกว่าในอดีตเมื่อคะแนนอยู่ในแต่ละช่วง ราคา BTC ใน 13 สัปดาห์ถัดไปเป็นอย่างไร · แถวที่มีป้าย "ตอนนี้" คือช่วงที่คะแนนปัจจุบันอยู่</p>
+      <div class="table-wrap" id="macro-buckets"></div>
+
+      <div id="macro-vsgold-wrap" hidden>
+        <h3 class="subhead">สภาพคล่องนำ BTC แต่ไม่นำทอง? <span class="count">(คำถามจากคลิป Behind The Crypto EP.33)</span></h3>
+        <p class="advice" id="macro-vsgold-summary"></p>
+        <div class="table-wrap" id="macro-vsgold"></div>
+        <p class="note"><b>วิธีอ่าน:</b> r คือความสัมพันธ์ระหว่างการเปลี่ยนแปลง 13 สัปดาห์ของสภาพคล่องโลก กับการเปลี่ยนแปลง 13 สัปดาห์ของราคา เมื่อให้สภาพคล่องเกิดก่อนตามจำนวนสัปดาห์ในแถวนั้น · +1 = ไปทางเดียวกันทุกครั้ง, 0 = ไม่สัมพันธ์, −1 = สวนทางทุกครั้ง · ทองขยับพร้อมสภาพคล่องในสัปดาห์เดียวกัน ส่วนหนึ่งเพราะทั้งคู่วัดเป็นดอลลาร์ ดอลลาร์อ่อนทำให้งบดุล ECB/BoJ ที่แปลงเป็นดอลลาร์และราคาทองสูงขึ้นพร้อมกัน แต่ใช้สภาพคล่องคาดราคาทองล่วงหน้าไม่ได้ · ในยุค ETF ช่วงนำ 26 สัปดาห์ค่าของ BTC กลับเป็นลบ จึงควรดูช่วงราว 13 สัปดาห์เป็นหลัก · Howell ให้เหตุผลว่าตอนนี้ทองวิ่งตามสภาพคล่องจีน ซึ่งไม่ได้อยู่ในดัชนีของเรา ข้อนี้จึงยังทดสอบตรง ๆ ไม่ได้</p>
+      </div>
+
+      <h3 class="subhead">ตัวชี้วัด Macro</h3>
+      <div class="cards" id="macro-cards"></div>
+      <p class="note">* สภาพคล่องโลก = งบดุล Fed − บัญชีกระทรวงการคลัง (TGA) − Reverse Repo + งบดุล ECB + งบดุล BoJ (แปลงเป็นดอลลาร์) จาก FRED อัปเดตรายสัปดาห์ ยังไม่รวมธนาคารกลางจีน (PBoC) และระบบธนาคารเงา จึงเป็นเวอร์ชันย่อของดัชนี Global Liquidity ของ Michael Howell · คะแนน Macro แยกจากคะแนน LTH/STH</p>
+    </section>
+
+    <section class="panel" id="stable-panel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>มีเงินใหม่เข้าตลาดคริปโตไหม: ยอด Stablecoin (USDT + USDC) <span class="count" id="stable-asof"></span></h2>
+          <p class="muted">Stablecoin คือเงินดอลลาร์ที่ถูกแลกเข้ามาพักในตลาดคริปโต ยอดรวมโตขึ้น = มีเงินใหม่เข้ามา · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนน</p>
+        </div>
+        <div class="seg" id="stable-range" role="group" aria-label="ช่วงเวลา">
+          <button type="button" data-v="2y">2 ปี</button>
+          <button type="button" data-v="5y" class="on">5 ปี</button>
+          <button type="button" data-v="all">ทั้งหมด</button>
+        </div>
+      </div>
+      <p class="advice" id="stable-summary"></p>
+      <div class="stats" id="stable-stats"></div>
+      <div class="chart-title">เงินเข้า (+) / ออก (−) สุทธิในรอบ 90 วัน (พันล้านดอลลาร์)</div>
+      <div class="chart-wrap chart-score"><canvas id="chart-stable" aria-label="กราฟการเปลี่ยนแปลงยอด Stablecoin ในรอบ 90 วัน"></canvas></div>
+      <p class="note"><b>วิธีอ่านกราฟ:</b> เส้นอยู่เหนือ $0 = ใน 90 วันที่ผ่านมามีเงินเข้าตลาดคริปโตสุทธิ · ต่ำกว่า $0 = เงินไหลออกสุทธิ · ดูค่าล่าสุดที่ปลายขวาของเส้น หรือที่กล่อง "สถานะตอนนี้" ด้านบน</p>
+
+      <h3 class="subhead">ใช้ทำนายราคาได้ไหม: หลักฐานย้อนหลัง <span class="count" id="stable-since"></span></h3>
+      <div class="stats" id="stable-evidence"></div>
+      <p class="note">* ยอดหมุนเวียนของ USDT และ USDC (Stablecoin สองตัวที่ใหญ่ที่สุด) จาก DefiLlama · ยอดลดลงได้ทั้งจากเงินไหลออกจากคริปโต และจากการย้ายไปถือ Stablecoin ตัวอื่น · r คือค่าความสัมพันธ์เชิงอันดับ: 0 = ไม่สัมพันธ์, +1 = ไปทางเดียวกันทุกครั้ง, −1 = สวนทางกันทุกครั้ง · ไม่นำไปคิดคะแนน LTH/STH/Macro เพราะทดสอบแล้วไม่ได้ช่วยบอกทิศทางราคาล่วงหน้า</p>
+    </section>
+
+    <section class="panel" id="etf-panel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>เงินเข้าออก ETF <span class="etf-asset"></span> ในสหรัฐ <span class="count" id="etf-asof"></span></h2>
+          <p class="muted">ETF คือกองทุนในตลาดหุ้นสหรัฐที่ถือเหรียญจริงไว้ให้ผู้ลงทุน เงินไหลเข้า = กองทุนต้องซื้อเหรียญเพิ่ม · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนน</p>
+        </div>
+        <div class="seg" id="etf-range" role="group" aria-label="ช่วงเวลา">
+          <button type="button" data-v="6m">6 เดือน</button>
+          <button type="button" data-v="1y" class="on">1 ปี</button>
+          <button type="button" data-v="all">ทั้งหมด</button>
+        </div>
+      </div>
+      <div id="etf-setup" class="etf-setup" hidden></div>
+      <div id="etf-body">
+        <p class="advice" id="etf-summary"></p>
+        <div class="stats" id="etf-stats"></div>
+        <div class="chart-title"><span>เงินเข้า (+) / ออก (−) สุทธิรายสัปดาห์ (ล้านดอลลาร์ · แกนขวา) เทียบราคา <span class="etf-asset"></span> (เส้น · แกนซ้าย)</span></div>
+        <div class="chart-wrap chart-etf"><canvas id="chart-etf" aria-label="กราฟเงินเข้าออก ETF รายสัปดาห์เทียบราคา"></canvas></div>
+        <p class="note"><b>วิธีอ่านกราฟ:</b> แท่งเขียว = สัปดาห์ที่เงินไหลเข้าสุทธิ · แท่งแดง = ไหลออกสุทธิ · ถ้าเงินนำราคาจริง แท่งเขียวต้องมาก่อนราคาขึ้น แต่ที่ผ่านมาแท่งเขียวมักมาพร้อมหรือหลังราคาขึ้น</p>
+
+        <h3 class="subhead">ใช้ทำนายราคาได้ไหม: หลักฐานย้อนหลัง <span class="count" id="etf-since"></span></h3>
+        <div class="stats" id="etf-evidence"></div>
+        <p class="note" id="etf-note"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Indicators ทั้งหมด <span class="count" id="ind-count"></span></h2>
+          <p class="muted">คะแนนแต่ละตัว 0–100: ยิ่งสูงยิ่งถูก/น่าซื้อ ยิ่งต่ำยิ่งแพง/ร้อนแรง</p>
+        </div>
+        <div class="controls">
+          <div class="seg" id="horizon" role="group" aria-label="กรองตามกลุ่มนักลงทุน">
+            <button type="button" data-v="all" class="on">ทั้งหมด</button>
+            <button type="button" data-v="lth">ระยะยาว</button>
+            <button type="button" data-v="sth">ระยะสั้น</button>
+          </div>
+          <div class="seg" id="view" role="group" aria-label="รูปแบบการแสดงผล">
+            <button type="button" data-v="cards" class="on">การ์ด</button>
+            <button type="button" data-v="table">ตาราง</button>
+          </div>
+        </div>
+      </div>
+      <div id="cards" class="cards"></div>
+      <div id="table" class="table-wrap" hidden></div>
+    </section>
+
+    <section class="panel method">
+      <h2>คิดคะแนนอย่างไร</h2>
+      <ol>
+        <li><b>คำนวณค่า indicator</b> จากข้อมูลจริง เช่น MVRV Z-Score จาก Market Cap/Realized Cap, Mayer Multiple จากราคา/MA200 ฯลฯ</li>
+        <li><b>แปลงเป็นคะแนน 0–100</b> ด้วยเกณฑ์แบบเส้นตรงเป็นช่วง (piecewise) ที่อิงระดับประวัติศาสตร์ เช่น MVRV Z &lt; 0 → 95–100, Z &gt; 7 → 0</li>
+        <li><b>ปรับตามรอบ (indicator สายยาว)</b> ยอดของแต่ละรอบต่ำลงเรื่อย ๆ เกณฑ์ตายตัวอย่างเดียวจึงเตือนยอดรอบหลัง ๆ ไม่ทัน คะแนนจึงคิด 70% จากเกณฑ์ + 30% จากการเทียบกับค่าของตัวเองใน 8 ปีที่ผ่านมา (สัดส่วนนี้เลือกจากการ backtest)</li>
+        <li><b>ถ่วงน้ำหนักตามสไตล์การลงทุน</b>
+          <ul>
+            <li><b>ระยะยาว (LTH)</b> เน้นตัววัดวัฏจักร: MVRV Z, NUPL, 200W MA, Power Law, LTH-MVRV, Puell, AHR999, RSI รายสัปดาห์</li>
+            <li><b>ระยะสั้น (STH)</b> เน้นตัววัดจังหวะ: STH-MVRV, RSI 14D, Fear &amp; Greed, Funding Rate, Bollinger %B, 20W SMA, MA50</li>
+          </ul>
+        </li>
+        <li><b>คะแนนรวม</b> = ค่าเฉลี่ยถ่วงน้ำหนักของ indicator ที่มีข้อมูล (ถ้าบางแหล่งดึงไม่ได้ จะไม่นำมาคิดและแสดงจำนวนที่ใช้จริง)</li>
+        <li><b>Macro / สภาพคล่องโลก</b> คิดแยกต่างหาก จาก Global Liquidity 13 และ 26 สัปดาห์, US Net Liquidity, ค่าเงินดอลลาร์, ความตึงของเงินสด (SOFR − IORB) และ Momentum — บอกว่าปัจจัยเงินโลกเป็นลมส่งหรือลมต้านในอีก 1–3 เดือน</li>
+        <li><b>ข้อมูลประกอบ (ไม่คิดคะแนน)</b> ยอด Stablecoin (USDT + USDC), การซื้อตั๋วเงินคลังของเฟด, ยีลด์ 2 ปี − SOFR และเส้นเช็คราคา — ทดสอบแล้วยอด Stablecoin เปลี่ยนตามราคา ไม่ได้นำราคา · งบดุลเฟดถูกนับอยู่ในคะแนน Global Liquidity แล้ว · ยีลด์ 2 ปี − SOFR ได้ผลจริงแต่ใส่ในคะแนนแล้วแทบไม่ช่วย · เส้นต้นทุนซ้ำกับ STH-MVRV และ MVRV ที่มีอยู่ จึงแสดงไว้ให้ดูประกอบเท่านั้น</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>แหล่งข้อมูล</h2>
+      <ul class="sources" id="sources"></ul>
+    </section>
+
+    <p class="disclaimer">⚠️ เว็บนี้เป็นเครื่องมือรวบรวมข้อมูลเชิงสถิติเพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน indicator ในอดีตไม่รับประกันผลในอนาคต และแต่ละรอบตลาดมีแนวโน้มผันผวนน้อยลง (ยอดรอบหลัง ๆ จึงอาจไม่ทำให้คะแนนลงไปต่ำสุดเหมือนรอบก่อน) โปรดศึกษาและบริหารความเสี่ยงด้วยตัวเอง</p>
+  </main>
+</body>
+</html>

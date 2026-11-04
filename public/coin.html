@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coin Indicator Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%232a78d6'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>¢</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // Page config read by app.js. The coin comes from the address: coin.html?c=ETH
+    (() => {
+      const coin = (new URLSearchParams(location.search).get('c') || 'ETH').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      window.PAGE = {
+        api: `/api/coin?symbol=${coin}`,
+        heroMeta: {
+          lth: { eyebrow: 'ระยะยาว · มูลค่าเชิงวัฏจักร', title: 'นักลงทุนระยะยาว', hint: 'ถือ 1 ปีขึ้นไป · ซื้อตอนตลาดเลิกสนใจ', cap: 'ความน่าลงทุน' },
+          sth: { eyebrow: 'ระยะสั้น · สภาวะตลาด', title: 'สภาวะระยะสั้น', hint: 'ย่อตัวหรือยืดตัวแค่ไหน — ใช้ดูสภาวะ ไม่ใช่สัญญาณ', cap: 'ย่อตัว (สูง) ↔ ยืดตัว (ต่ำ)' },
+        },
+        advice: {
+          lth: {
+            'strong-buy': 'ราคาอยู่ในโซนที่ตลาดเลิกสนใจ — ในอดีตโซนนี้ให้ผลตอบแทนปีถัดไปดีที่สุด แต่เหรียญที่ไม่ฟื้นก็มี',
+            buy: 'ราคาต่ำกว่ามูลค่าเชิงวัฏจักร — เหมาะทยอยสะสมถ้าเชื่อในเหรียญนี้',
+            neutral: 'ราคาอยู่กลางวัฏจักร — ยังไม่มีข้อได้เปรียบชัดเจน',
+            sell: 'ราคาเริ่มแพงเชิงวัฏจักร — ในอดีตผลตอบแทนปีถัดไปมักติดลบ',
+            'strong-sell': 'ราคาร้อนแรง — ในอดีตโซนนี้ตามด้วยการขาดทุนหนักในปีถัดไปเป็นส่วนใหญ่',
+            na: 'ข้อมูลไม่พอสำหรับคำนวณ',
+          },
+          sth: {
+            'strong-buy': 'ระยะสั้นถูกขายหนัก — แต่กับเหรียญอื่น สถิติไม่ได้ชี้ว่าจะเด้งเสมอ',
+            buy: 'ราคาย่อตัวระยะสั้น — เป็นข้อมูลประกอบ ไม่ใช่สัญญาณซื้อ',
+            neutral: 'สภาวะระยะสั้นปกติ',
+            sell: 'ราคายืดตัวระยะสั้น — เป็นข้อมูลประกอบ ไม่ใช่สัญญาณขาย',
+            'strong-sell': 'ระยะสั้นร้อนแรงมาก — ระวังการไล่ราคา',
+            na: 'ข้อมูลไม่พอสำหรับคำนวณ',
+          },
+        },
+      };
+    })();
+  </script>
+  <script src="vendor/chart.umd.min.js" defer></script>
+  <script src="common.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="backtest.js" defer></script>
+  <script src="etf.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo logo-coin" id="asset-logo" aria-hidden="true">¢</span>
+      <div>
+        <h1 id="asset-title">กำลังโหลด…</h1>
+        <p class="sub">มูลค่าเชิงวัฏจักร · On-chain · รอบของ Bitcoin พร้อมหลักฐานย้อนหลังของเหรียญนี้เอง</p>
+        <nav class="nav" aria-label="เลือกสินทรัพย์">
+          <a href="/">₿ Bitcoin</a>
+          <a href="/gold.html">ทองคำ</a>
+          <a href="/alts.html" class="on">เหรียญอื่น</a>
+        </nav>
+      </div>
+    </div>
+    <div class="price-box">
+      <div class="price-label" id="price-label">USD</div>
+      <div class="price" id="price">–</div>
+      <div class="price-meta"><span id="change"></span><span id="updated"></span></div>
+      <div class="net-status" id="net-status"></div>
+    </div>
+    <button id="refresh" class="btn" type="button">↻ รีเฟรช</button>
+  </header>
+
+  <main>
+    <nav class="coin-nav" id="coin-nav" aria-label="เลือกเหรียญ"></nav>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="heroes" aria-label="สรุปคะแนน">
+      <article class="hero" id="hero-lth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+      <article class="hero" id="hero-sth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+      <article class="hero" id="hero-verdict"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
+    </section>
+
+    <section class="scale" aria-label="ความหมายของคะแนน">
+      <span class="scale-title">ความหมายของ %</span>
+      <span class="pill tone-strong-sell"><i></i>0–20 ร้อนแรง / ระวัง</span>
+      <span class="pill tone-sell"><i></i>20–40 ค่อนข้างแพง</span>
+      <span class="pill tone-neutral"><i></i>40–60 เป็นกลาง</span>
+      <span class="pill tone-buy"><i></i>60–80 น่าสะสม</span>
+      <span class="pill tone-strong-buy"><i></i>80–100 น่าซื้อสะสมมาก</span>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>คะแนนย้อนหลังเทียบราคา</h2>
+          <p class="muted">คะแนนระยะยาวควรสูงตอนราคาอยู่ก้น และต่ำตอนราคาอยู่ยอด</p>
+        </div>
+        <div class="range-pick">
+          <div class="seg" id="range" role="group" aria-label="ช่วงเวลา">
+            <button type="button" data-v="1y">1 ปี</button>
+            <button type="button" data-v="4y" class="on">4 ปี</button>
+            <button type="button" data-v="all">ทั้งหมด</button>
+          </div>
+          <label class="field" title="เลือกวันเพื่อดูว่าทุกเส้นเป็นอย่างไรในวันนั้น">หรือเลือกวัน <input type="date" id="range-date"></label>
+        </div>
+      </div>
+      <p class="advice range-readout" id="range-readout" hidden></p>
+      <div class="intraday" id="intraday" hidden>
+        <div class="chart-title"><span>ราคา 24 ชั่วโมงของวันนั้น (เวลาไทย)</span></div>
+        <p class="intraday-stats" id="intraday-stats"></p>
+        <div class="chart-wrap chart-intraday"><canvas id="chart-intraday" aria-label="กราฟราคาระหว่างวันของวันที่เลือก"></canvas></div>
+        <div id="intraday-score-wrap">
+          <div class="chart-title">
+            คะแนนระหว่างวัน (%) — ถ้าแท่งรายวันปิดที่ราคานั้น
+            <span class="legend">
+              <span class="key key-lth"></span>ระยะยาว (LTH)
+              <span class="key key-sth"></span>ระยะสั้น (STH)
+            </span>
+          </div>
+          <div class="chart-wrap chart-intraday-score"><canvas id="chart-intraday-score" aria-label="กราฟคะแนนระยะยาวและระยะสั้นระหว่างวัน"></canvas></div>
+        </div>
+        <p class="note" id="intraday-note"></p>
+      </div>
+      <div class="chart-title">ราคา (สเกล log)</div>
+      <div class="chart-wrap chart-price"><canvas id="chart-price" aria-label="กราฟราคา"></canvas></div>
+      <div class="chart-title">
+        คะแนน (%)
+        <span class="legend">
+          <span class="key key-lth"></span>ระยะยาว
+          <span class="key key-sth"></span>ระยะสั้น
+        </span>
+      </div>
+      <div class="chart-wrap chart-score"><canvas id="chart-score" aria-label="กราฟคะแนนระยะยาวและระยะสั้น"></canvas></div>
+      <p class="note">* คะแนนแต่ละวันคำนวณจากข้อมูลที่มีถึงวันนั้นเท่านั้น แต่เกณฑ์คะแนนถูกออกแบบโดยดูประวัติของ 16 เหรียญรวมกัน จึงดูดีกว่าการใช้งานจริงอยู่บ้าง · คะแนนระยะยาวเริ่มมีหลังเหรียญมีข้อมูลครบ 1 ปี</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>หลักฐานย้อนหลังของเหรียญนี้</h2>
+          <p class="muted">ถ้าคะแนนใช้ได้จริง แถวคะแนนสูงควรให้ผลดีกว่าแถวคะแนนต่ำอย่างชัดเจน</p>
+        </div>
+      </div>
+      <div class="evidence-grid">
+        <div>
+          <h3 class="subhead">คะแนนระยะยาว → ราคา 1 ปีถัดไป</h3>
+          <div class="table-wrap" id="evidence-lth"></div>
+        </div>
+        <div>
+          <h3 class="subhead">คะแนนระยะสั้น → ราคา 30 วันถัดไป</h3>
+          <div class="table-wrap" id="evidence-sth"></div>
+        </div>
+      </div>
+      <p class="note">* แถวที่มีจำนวนวันน้อย (ต่ำกว่า ~200 วัน) มาจากเหตุการณ์เพียง 1–2 ครั้ง อย่าเชื่อตัวเลขมากเกินไป · วันที่ติดกันมีผลลัพธ์ซ้อนทับกัน จำนวนเหตุการณ์อิสระจริงจึงน้อยกว่าจำนวนวันมาก</p>
+    </section>
+
+    <section class="panel" id="etf-panel" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>เงินเข้าออก ETF <span class="etf-asset"></span> ในสหรัฐ <span class="count" id="etf-asof"></span></h2>
+          <p class="muted">ETF คือกองทุนในตลาดหุ้นสหรัฐที่ถือเหรียญจริงไว้ให้ผู้ลงทุน เงินไหลเข้า = กองทุนต้องซื้อเหรียญเพิ่ม · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนน</p>
+        </div>
+        <div class="seg" id="etf-range" role="group" aria-label="ช่วงเวลา">
+          <button type="button" data-v="6m">6 เดือน</button>
+          <button type="button" data-v="1y" class="on">1 ปี</button>
+          <button type="button" data-v="all">ทั้งหมด</button>
+        </div>
+      </div>
+      <div id="etf-setup" class="etf-setup" hidden></div>
+      <div id="etf-body">
+        <p class="advice" id="etf-summary"></p>
+        <div class="stats" id="etf-stats"></div>
+        <div class="chart-title"><span>เงินเข้า (+) / ออก (−) สุทธิรายสัปดาห์ (ล้านดอลลาร์ · แกนขวา) เทียบราคา <span class="etf-asset"></span> (เส้น · แกนซ้าย)</span></div>
+        <div class="chart-wrap chart-etf"><canvas id="chart-etf" aria-label="กราฟเงินเข้าออก ETF รายสัปดาห์เทียบราคา"></canvas></div>
+        <p class="note"><b>วิธีอ่านกราฟ:</b> แท่งเขียว = สัปดาห์ที่เงินไหลเข้าสุทธิ · แท่งแดง = ไหลออกสุทธิ · ถ้าเงินนำราคาจริง แท่งเขียวต้องมาก่อนราคาขึ้น แต่ที่ผ่านมาแท่งเขียวมักมาพร้อมหรือหลังราคาขึ้น</p>
+
+        <h3 class="subhead">ใช้ทำนายราคาได้ไหม: หลักฐานย้อนหลัง <span class="count" id="etf-since"></span></h3>
+        <div class="stats" id="etf-evidence"></div>
+        <p class="note" id="etf-note"></p>
+      </div>
+    </section>
+
+    <section class="panel" id="bt-panel">
+      <div class="panel-head">
+        <div>
+          <h2>ทดสอบย้อนหลัง: DCA ปกติ vs DCA ตามคะแนน <span class="count" id="bt-period"></span></h2>
+          <p class="muted">ทั้งสองแบบเติมเงินเท่ากันทุกงวด — DCA ตามคะแนนซื้อมากตอนคะแนนสูง ซื้อน้อยตอนคะแนนต่ำ แล้วเก็บเงินที่เหลือเป็นเงินสดไว้ใช้รอบถัดไป</p>
+        </div>
+      </div>
+      <div class="bt-controls">
+        <label class="field">เริ่มปี <select id="bt-start"></select></label>
+        <div class="seg" id="bt-source" role="group" aria-label="คะแนนที่ใช้ตัดสินใจ">
+          <button type="button" data-v="lth" class="on">ใช้คะแนนระยะยาว</button>
+          <button type="button" data-v="sth">ระยะสั้น</button>
+        </div>
+        <div class="seg" id="bt-freq" role="group" aria-label="ความถี่">
+          <button type="button" data-v="monthly" class="on">รายเดือน</button>
+          <button type="button" data-v="weekly">รายสัปดาห์</button>
+        </div>
+        <label class="field">เงินต่องวด ($) <input id="bt-amount" type="number" min="1" step="10" value="100"></label>
+        <label class="field check"><input id="bt-sell" type="checkbox"> ทยอยขายเมื่อคะแนน &lt; 20</label>
+      </div>
+      <div class="bt-rules" id="bt-rules"></div>
+      <div class="stats" id="bt-stats"></div>
+      <div class="bt-grid">
+        <div class="table-wrap" id="bt-table"></div>
+        <div>
+          <div class="chart-title">
+            มูลค่าพอร์ต
+            <span class="legend">
+              <span class="key key-invested"></span>เงินที่เติม
+              <span class="key key-plain"></span>DCA ปกติ
+              <span class="key key-smart"></span>DCA ตามคะแนน
+            </span>
+          </div>
+          <div class="chart-wrap chart-bt"><canvas id="chart-bt" aria-label="กราฟมูลค่าพอร์ตย้อนหลัง"></canvas></div>
+        </div>
+      </div>
+      <p class="note">* เงินที่ยังไม่ได้ซื้อเก็บเป็นเงินสด (ไม่คิดดอกเบี้ย) · ไม่รวมค่าธรรมเนียมและภาษี · ทยอยขาย = ขาย 2% ของเหรียญที่ถือต่อเดือนเมื่อคะแนนต่ำกว่า 20 · กฎการซื้อชุดเดียวกับหน้า Bitcoin</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>ตัวชี้วัดทั้งหมด <span class="count" id="ind-count"></span></h2>
+          <p class="muted">คะแนนแต่ละตัว 0–100: ยิ่งสูงยิ่งถูก/น่าซื้อ ยิ่งต่ำยิ่งแพง/ร้อนแรง</p>
+        </div>
+        <div class="controls">
+          <div class="seg" id="horizon" role="group" aria-label="กรองตามระยะเวลา">
+            <button type="button" data-v="all" class="on">ทั้งหมด</button>
+            <button type="button" data-v="lth">ระยะยาว</button>
+            <button type="button" data-v="sth">ระยะสั้น</button>
+          </div>
+          <div class="seg" id="view" role="group" aria-label="รูปแบบการแสดงผล">
+            <button type="button" data-v="cards" class="on">การ์ด</button>
+            <button type="button" data-v="table">ตาราง</button>
+          </div>
+        </div>
+      </div>
+      <div id="cards" class="cards"></div>
+      <div id="table" class="table-wrap" hidden></div>
+    </section>
+
+    <section class="panel method">
+      <h2>คะแนนของเหรียญอื่นคิดอย่างไร</h2>
+      <ol>
+        <li><b>ทดสอบก่อนออกแบบ</b> ใช้ประวัติ 16 เหรียญ (10 เหรียญในเว็บ + เหรียญที่เคยอยู่ top 10 แล้วหลุดไป: LTC, BCH, XLM, DOT, AVAX, SHIB) แบ่งก่อน/หลังปี 2022 เพื่อดูว่าตัวชี้วัดไหนได้ผลสม่ำเสมอ</li>
+        <li><b>คะแนนระยะยาว</b> = ราคาเทียบเส้นค่าเฉลี่ย 2 ปี (น้ำหนักมากสุด), MVRV (เฉพาะเหรียญที่มีข้อมูล), ระยะห่างจากจุดสูงสุด, วัฏจักรของ Bitcoin และความแข็งแรงเทียบ BTC — รวมกันแล้วคะแนน 75 ขึ้นไปเคยตามด้วยผลตอบแทน 1 ปีค่ากลาง +34% ส่วนต่ำกว่า 30 ค่ากลาง −43%</li>
+        <li><b>คะแนนระยะสั้นเป็นแค่ตัวบอกสภาวะ</b> RSI, Bollinger %B และระยะห่างจากเส้น 50 วัน ทดสอบแล้วไม่ช่วยทำนายราคา 30 วันถัดไปของเหรียญกลุ่มนี้เลย</li>
+        <li><b>ไม่ได้ใช้ได้กับทุกเหรียญ</b> เหรียญที่ขึ้นต่อเนื่อง (เช่น BNB, TRX) ซื้อตามคะแนนแล้วแพ้ DCA ปกติ การ์ด "ข้อสรุปก่อนใช้คะแนน" ด้านบนบอกผลของเหรียญนี้โดยเฉพาะ</li>
+        <li><b>ความเสี่ยงที่คะแนนมองไม่เห็น</b> เหรียญอื่นอาจเสื่อมความนิยมถาวร คะแนนสูงเพราะราคาตกหนักไม่ได้แปลว่าจะกลับมา</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>แหล่งข้อมูล</h2>
+      <ul class="sources" id="sources"></ul>
+    </section>
+
+    <p class="disclaimer">⚠️ เว็บนี้เป็นเครื่องมือรวบรวมข้อมูลเชิงสถิติเพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน เหรียญอื่นนอกจาก Bitcoin มีความเสี่ยงสูงกว่ามาก รวมถึงความเสี่ยงที่มูลค่าจะหายไปเกือบทั้งหมด ผลในอดีตไม่รับประกันผลในอนาคต</p>
+  </main>
+</body>
+</html>

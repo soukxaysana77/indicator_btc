@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>เหรียญอื่น Top 10 — เทียบคะแนนทุกเหรียญ</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%232a78d6'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>¢</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/chart.umd.min.js" defer></script>
+  <script src="common.js" defer></script>
+  <script src="alts-page.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo logo-coin" aria-hidden="true">10</span>
+      <div>
+        <h1>เหรียญอื่น (Top 10 + PEPE, LUNC)</h1>
+        <p class="sub">เทียบคะแนนของทุกเหรียญในตารางเดียว และบอกด้วยว่าคะแนนเคยใช้กับเหรียญไหนได้ผลแค่ไหน</p>
+        <nav class="nav" aria-label="เลือกสินทรัพย์">
+          <a href="/">₿ Bitcoin</a>
+          <a href="/gold.html">ทองคำ</a>
+          <a href="/alts.html" class="on" aria-current="page">เหรียญอื่น</a>
+        </nav>
+      </div>
+    </div>
+    <div class="price-box">
+      <div class="price-meta"><span id="updated"></span></div>
+      <div class="net-status" id="net-status"></div>
+    </div>
+    <button id="refresh" class="btn" type="button">↻ รีเฟรช</button>
+  </header>
+
+  <main>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="stats" id="alts-stats" aria-label="สรุป"></section>
+
+    <section class="panel" id="alts-charts">
+      <div class="panel-head">
+        <div>
+          <h2>ภาพรวมตอนนี้</h2>
+          <p class="muted">เทียบทุกเหรียญ ณ วันนี้ — กดที่แท่งเพื่อเลื่อนไปดูกราฟย้อนหลังของเหรียญนั้น</p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="chart-title">คะแนนระยะยาวตอนนี้ (%)</div>
+          <div class="chart-wrap chart-bars"><canvas id="chart-bars-lth" aria-label="กราฟแท่งคะแนนระยะยาวของแต่ละเหรียญ"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-title">สภาวะระยะสั้นตอนนี้ (%) — สูง = ย่อตัวลงมามาก · ต่ำ = ยืดตัวขึ้นไปมาก</div>
+          <div class="chart-wrap chart-bars"><canvas id="chart-bars-sth" aria-label="กราฟแท่งสภาวะระยะสั้นของแต่ละเหรียญ"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-title">ราคาตอนนี้ต่ำกว่าจุดสูงสุดกี่ %</div>
+          <div class="chart-wrap chart-bars"><canvas id="chart-bars-dd" aria-label="กราฟแท่งระยะห่างจากจุดสูงสุดของแต่ละเหรียญ"></canvas></div>
+        </div>
+      </div>
+      <p class="note">* สภาวะระยะสั้นของเหรียญอื่นเป็นข้อมูลประกอบ ทดสอบกับ 16 เหรียญแล้วใช้จับจังหวะไม่ได้ (คะแนนสูงไม่ได้แปลว่าจะเด้ง) · BTC ใช้คะแนน STH ของหน้า Bitcoin เป็นตัวอ้างอิง</p>
+    </section>
+
+    <section class="panel" id="coin-charts-panel">
+      <div class="panel-head">
+        <div>
+          <h2>กราฟย้อนหลังรายเหรียญ</h2>
+          <p class="muted">แยกกราฟของแต่ละเหรียญ: ราคาอยู่บน คะแนนอยู่ล่าง — ดูว่าคะแนนเคยให้สัญญาณอย่างไรที่ยอดและก้นของเหรียญนั้น</p>
+        </div>
+        <div class="range-pick">
+          <div class="seg" id="chart-range" role="group" aria-label="ช่วงเวลา">
+            <button type="button" data-v="1y">1 ปี</button>
+            <button type="button" data-v="4y" class="on">4 ปี</button>
+            <button type="button" data-v="all">ทั้งหมด</button>
+          </div>
+          <label class="field" title="เลือกวันเพื่อดูว่าทุกเส้นเป็นอย่างไรในวันนั้น">หรือเลือกวัน <input type="date" id="chart-date"></label>
+        </div>
+      </div>
+      <div id="day-table" hidden></div>
+      <div class="coin-charts" id="coin-charts"></div>
+      <p class="note" id="chart-note">* แถบสีเขียวอ่อน = คะแนน 80 ขึ้นไป แถบสีแดงอ่อน = ต่ำกว่า 20 · คะแนนระยะยาวเริ่มมีหลังเหรียญมีข้อมูลครบ 1 ปี · คะแนนระยะสั้นเป็นข้อมูลประกอบ ทดสอบแล้วใช้จับจังหวะไม่ได้ · เลื่อนเมาส์บนกราฟเพื่อดูค่าของวันนั้น · กดชื่อเหรียญเพื่อดูรายละเอียดและหลักฐานของเหรียญนั้น</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>เทียบทุกเหรียญ</h2>
+          <p class="muted">กดที่ชื่อเหรียญเพื่อดูรายละเอียด กราฟย้อนหลัง และหลักฐานของเหรียญนั้น</p>
+        </div>
+        <div class="seg" id="sort" role="group" aria-label="เรียงลำดับ">
+          <button type="button" data-v="rank" class="on">เรียงตามมูลค่าตลาด</button>
+          <button type="button" data-v="lth">เรียงตามคะแนนระยะยาว</button>
+        </div>
+      </div>
+      <div class="table-wrap" id="alts-table"><p class="skeleton">กำลังโหลดข้อมูล…</p></div>
+      <p class="note">
+        * <b>คะแนนระยะยาว</b> ยิ่งสูง = ราคายิ่งต่ำเทียบวัฏจักรของตัวเอง ·
+        <b>สภาวะระยะสั้น</b> เป็นข้อมูลประกอบ ทดสอบแล้วใช้จับจังหวะไม่ได้ ·
+        <b>คะแนนเคยได้ผลไหม</b> ดูจากประวัติของเหรียญนั้นเอง (เลื่อนเมาส์ไปที่ป้ายเพื่อดูเหตุผล) ·
+        <b>DCA ตามคะแนน</b> = มูลค่าพอร์ตเทียบกับ DCA ปกติ เฉลี่ยจากหลายปีเริ่มต้น ·
+        <b>DCA ปกติ</b> = กำไร/ขาดทุนถ้าซื้อเท่ากันทุกเดือนตั้งแต่เดือนที่ระบุ ·
+        HYPE อยู่ใน top 10 แต่เพิ่งเข้า Binance เดือน ก.ย. 2026 ข้อมูลยังไม่พอคิดคะแนน
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>หลักฐานรวม: คะแนนระยะยาว → ราคา 1 ปีถัดไป</h2>
+          <p class="muted">รวมทุกวันของทุกเหรียญในหน้านี้ ตั้งแต่เริ่มมีข้อมูลของแต่ละเหรียญ</p>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <div class="chart-title">ราคา 1 ปีถัดไป (ค่ากลาง) ตามช่วงคะแนนระยะยาว</div>
+          <div class="chart-wrap chart-pooled"><canvas id="chart-pooled" aria-label="กราฟแท่งผลตอบแทน 1 ปีถัดไปตามช่วงคะแนน"></canvas></div>
+        </div>
+        <div class="table-wrap" id="alts-pooled"></div>
+      </div>
+      <p class="note">* ตัวเลขนี้ส่วนใหญ่มาจากเหรียญที่ยังอยู่ top 10 วันนี้ จึงดูดีเกินจริง (LUNC เป็นเหรียญเดียวที่พังไปแล้ว ข้อมูลของมันเริ่มหลังการล่มสลายปี 2022) — เมื่อทดสอบกับเหรียญที่เคยอยู่ top 10 แล้วหลุดไป (LTC, BCH, XLM, DOT, AVAX, SHIB) คะแนน 60–75 ให้ค่ากลาง −5% และมีเพียงคะแนน 75 ขึ้นไปที่ยังเป็นบวก (+29%)</p>
+    </section>
+
+    <section class="panel method">
+      <h2>ข้อควรรู้ก่อนใช้หน้านี้</h2>
+      <ol>
+        <li><b>เหรียญอื่นขึ้นลงตามรอบของ Bitcoin</b> แต่แรงกว่าทั้งขาขึ้นและขาลง ตลาดหมีแต่ละรอบเหรียญส่วนใหญ่ลง 80–90% จากจุดสูงสุด</li>
+        <li><b>ระยะยาว ซื้อตอนถูกได้ผล</b> คะแนนระยะยาวสูงเคยตามด้วยผลตอบแทนที่ดีกว่าชัดเจน (ดูตารางหลักฐานรวม) คล้าย Bitcoin มากกว่าทองคำ</li>
+        <li><b>ระยะสั้นจับจังหวะไม่ได้</b> RSI, Bollinger, ระยะห่างจากเส้น 50 วัน ทดสอบกับ 16 เหรียญแล้วไม่ช่วยทำนายราคา 30 วันถัดไป</li>
+        <li><b>ไม่ใช่ทุกเหรียญที่คะแนนใช้ได้</b> ดูคอลัมน์ "คะแนนเคยได้ผลไหม" — เหรียญที่ขึ้นต่อเนื่องอย่าง BNB และ TRX ซื้อตามคะแนนแล้วแพ้ DCA ปกติ</li>
+        <li><b>เหรียญอาจไม่ฟื้น</b> หลายเหรียญที่เคยอยู่ top 10 ยังต่ำกว่าจุดสูงสุด 80–98% หลังผ่านมาหลายปี การถือเหรียญเดียวจึงเสี่ยงกว่า Bitcoin มาก</li>
+      </ol>
+    </section>
+
+    <section class="panel">
+      <h2>แหล่งข้อมูล</h2>
+      <ul class="sources" id="sources"></ul>
+    </section>
+
+    <p class="disclaimer">⚠️ เว็บนี้เป็นเครื่องมือรวบรวมข้อมูลเชิงสถิติเพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน เหรียญอื่นนอกจาก Bitcoin มีความเสี่ยงสูงกว่ามาก รวมถึงความเสี่ยงที่มูลค่าจะหายไปเกือบทั้งหมด ผลในอดีตไม่รับประกันผลในอนาคต</p>
+  </main>
+</body>
+</html>
