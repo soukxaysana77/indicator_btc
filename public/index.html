@@ -8,10 +8,17 @@
   <link rel="stylesheet" href="style.css">
   <script src="vendor/chart.umd.min.js" defer></script>
   <script src="common.js" defer></script>
+  <script src="sth99.js" defer></script>
+  <script src="paper.js" defer></script>
+  <script src="today.js" defer></script>
   <script src="app.js" defer></script>
   <script src="backtest.js" defer></script>
   <script src="seasonal.js" defer></script>
+  <script src="halving.js" defer></script>
+  <script src="credit.js" defer></script>
   <script src="etf.js" defer></script>
+  <script src="realized.js" defer></script>
+  <script src="bottomcheck.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -39,6 +46,12 @@
   <main>
     <div id="error" class="error" role="alert" hidden></div>
 
+    <section class="panel today" id="today-panel" hidden aria-label="สรุปวันนี้">
+      <div class="today-head"><h2>สรุปวันนี้</h2><span class="count" id="today-asof"></span></div>
+      <div class="today-grid" id="today-grid"></div>
+      <nav class="today-nav" id="today-nav" aria-label="ไปที่แผง"></nav>
+    </section>
+
     <section class="heroes" aria-label="สรุปคะแนน">
       <article class="hero" id="hero-lth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
       <article class="hero" id="hero-sth"><div class="skeleton">กำลังโหลดข้อมูล…</div></article>
@@ -54,7 +67,58 @@
       <span class="pill tone-strong-buy"><i></i>80–100 น่าซื้อสะสมมาก</span>
     </section>
 
-    <section class="panel">
+    <section class="panel sth99" id="sth99-panel" data-nav="เตือน STH" hidden aria-live="polite">
+      <details id="sth99-details">
+        <summary id="sth99-summary">เตือน STH 99</summary>
+        <div id="sth99-body"></div>
+      </details>
+    </section>
+
+    <section class="panel" id="paper-panel" data-nav="ระบบทดลอง" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>ระบบทดลอง (ไม่ใช้เงินจริง)</h2>
+          <p class="muted">ถือ BTC เมื่อราคาปิดวันอยู่เหนือเส้นค่าเฉลี่ย ถ้าต่ำกว่าให้ถือเงินสด และตอนถือเงินสด ถ้าสินทรัพย์ไหนปิดวันที่ STH 99 ให้ซื้อแล้วขายวันถัดไป — ตัดสินใจตอนปิดวัน (07:00 น.) เว็บจดผลสมมติให้ทุกวันจากราคาปิดจริง</p>
+        </div>
+      </div>
+      <div class="bt-controls">
+        <span class="field">เส้นค่าเฉลี่ย</span>
+        <div class="seg" id="paper-ma" role="group" aria-label="เส้นค่าเฉลี่ยที่ใช้">
+          <button type="button" data-v="50">50 วัน</button>
+          <button type="button" data-v="100" class="on">100 วัน</button>
+          <button type="button" data-v="120">120 วัน</button>
+          <button type="button" data-v="150">150 วัน</button>
+        </div>
+        <label class="field">เริ่มทดลอง <input type="date" id="paper-from" aria-label="วันที่เริ่มทดลอง"></label>
+        <label class="field">เงินสมมติ $ <input type="number" id="paper-capital" min="1" step="any" value="1000" aria-label="เงินสมมติ (ดอลลาร์)"></label>
+        <button type="button" class="btn" id="paper-restart">เริ่มใหม่วันนี้</button>
+      </div>
+      <p class="advice" id="paper-signal"></p>
+      <div class="chart-title">
+        <span id="paper-price-title">ราคา BTC เทียบเส้นค่าเฉลี่ย (1 ปีล่าสุด)</span>
+        <span class="legend paper-legend">
+          <span><span class="key key-price"></span>ราคาปิด</span>
+          <span><span class="key key-avg"></span>เส้นค่าเฉลี่ย</span>
+          <span><span class="key key-above"></span>เหนือเส้น = ถือ BTC</span>
+          <span><span class="key key-below"></span>ใต้เส้น = ถือเงินสด</span>
+          <span><span class="paper-mark up">▲</span>ซื้อ <span class="paper-mark down">▼</span>ขาย</span>
+        </span>
+      </div>
+      <div class="chart-wrap chart-paper-price"><canvas id="chart-paper-price" aria-label="กราฟราคา BTC เทียบเส้นค่าเฉลี่ย พื้นสีเขียวคือช่วงที่ราคาอยู่เหนือเส้น สีแดงคือใต้เส้น"></canvas></div>
+      <div class="stats" id="paper-stats"></div>
+      <div id="paper-chart-wrap" hidden>
+        <div class="chart-title">มูลค่าพอร์ตทดลอง <span class="legend"><span class="key key-macro"></span>ระบบทดลอง <span class="key key-price"></span>ถือ BTC เฉย ๆ</span></div>
+        <div class="chart-wrap chart-score"><canvas id="chart-paper" aria-label="กราฟมูลค่าพอร์ตทดลองเทียบการถือ BTC เฉย ๆ"></canvas></div>
+      </div>
+      <h3 class="subhead">บันทึกการซื้อขาย (สมมติ)</h3>
+      <div class="table-wrap" id="paper-trades"></div>
+      <h3 class="subhead">ผลย้อนหลังของระบบนี้ แยกตามรอบ halving</h3>
+      <div class="table-wrap" id="paper-backtest"></div>
+      <p class="note">* <b>กติกา:</b> ทุกวันตอนปิดวัน (07:00 น.) ถ้าราคาปิด BTC อยู่เหนือเส้นค่าเฉลี่ยที่เลือก → ถือ BTC · ต่ำกว่า → ขายถือเงินสด · ระหว่างถือเงินสด ถ้าสินทรัพย์ไหนในเว็บ (BTC, ทอง, 11 เหรียญ) ปิดวันที่ STH 99 ขึ้นไป → ใช้เงินสดซื้อ (แบ่งเท่า ๆ กันถ้าหลายตัว) แล้วขายตอนปิดวันถัดไป · หักค่าธรรมเนียม 0.1% ทุกครั้งที่ซื้อและขาย ยังไม่รวมราคาที่คลาดเคลื่อนตอนซื้อจริงและภาษี ·
+        ทดสอบเมื่อ 11 พ.ย. 2026: เส้น 50–150 วันได้ผลเท่าหรือดีกว่าถือเฉย ๆ ทุกรอบ halving และลงลึกน้อยกว่า ส่วนเส้น 30 และ 200 วันไม่ได้ดีกว่าถือเฉย ๆ · ตัวเลขต่อปีช่วงแรก (2014–2017) สูงเพราะ BTC ยังเล็ก รอบหลัง ๆ เล็กลงเรื่อย ๆ · ระบบนี้ถือเงินสดอยู่ตอนตลาดหมี ซึ่งเป็นช่วงที่คะแนน LTH บอกว่า "ถูก" จึงเป็นคนละแนวกับการทยอยสะสมตามคะแนน (ใช้เงินคนละก้อนได้) · เว็บจำวันเริ่ม เส้น และเงินสมมติไว้ในเบราว์เซอร์นี้ · ผลในอดีตไม่รับประกันอนาคต ไม่ใช่คำแนะนำการลงทุน</p>
+    </section>
+
+    <section class="panel" id="chart-panel" data-nav="กราฟคะแนน">
       <div class="panel-head">
         <div>
           <h2>คะแนนย้อนหลังเทียบราคา</h2>
@@ -99,7 +163,32 @@
       <p class="note">* คะแนนแต่ละวันคำนวณจากข้อมูลที่มีถึงวันนั้นเท่านั้น (รวม Power Law และการเทียบย้อนหลัง 8 ปี) แต่เกณฑ์คะแนนถูกออกแบบโดยดูประวัติทั้งหมด จึงดูดีกว่าการใช้งานจริงอยู่บ้าง</p>
     </section>
 
-    <section class="panel" id="cost-panel" hidden>
+    <section class="panel" id="bottom-panel" data-nav="เช็คลิสต์จุดต่ำสุด" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>เช็คลิสต์จุดต่ำสุดช่วงฟื้นตัว (Local Bottom) <span class="count" id="bottom-asof"></span></h2>
+          <p class="muted">3 สัญญาณจากไลฟ์ของ TonHor Palakorn (3 พ.ย. 2026) พร้อมผลทดสอบย้อนหลังที่คำนวณใหม่ทุกครั้ง และเทียบกับคะแนน LTH ของเว็บนี้ · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนน</p>
+        </div>
+      </div>
+      <p class="advice" id="bottom-summary"></p>
+      <ul class="checklist" id="bottom-list"></ul>
+
+      <h3 class="subhead">ผลทดสอบย้อนหลังในช่วงฟื้นตัว <span class="count" id="bottom-since"></span></h3>
+      <div class="table-wrap" id="bottom-evidence"></div>
+      <div class="grid-2">
+        <div>
+          <h3 class="subhead">ทุกครั้งที่ติ๊กครบ 3 ข้อในช่วงฟื้นตัว</h3>
+          <div class="table-wrap" id="bottom-episodes"></div>
+        </div>
+        <div>
+          <h3 class="subhead">ป๊อปคอร์น: ต้นทุน STH ตัดขึ้นเหนือ TMM แล้วอีกกี่วันถึง New High</h3>
+          <div class="table-wrap" id="bottom-popcorn"></div>
+        </div>
+      </div>
+      <p class="note">ตัวเลขในตารางคือค่ากลางของราคาที่เปลี่ยนไป และ "ขึ้น x%" = ราคาสูงขึ้นกี่ % ของครั้ง · ค่ากลางแบบนับรายวันของ "ครบทั้ง 3 ข้อ*" ถูกดึงสูงด้วยปี 2020 (+593%) ให้ดูผลรายครั้งในตารางถัดไปแทน · "ช่วง" = กลุ่มวันที่ห่างกันเกิน 30 วัน · <b>ลงลึกสุด*</b> = ราคาต่ำสุดภายใน 1 ปีหลังวันนั้น เทียบราคาวันนั้น (กรณีแย่สุด) · ข้อมูลเหรียญที่กำไรและต้นทุนจาก Bitcoin Research Kit อาจต่างจาก Glassnode / CheckOnChain ที่ใช้ในคลิปเล็กน้อย · ช่วงฟื้นตัวในอดีตมีไม่กี่รอบ ตัวเลขจึงมาจากไม่กี่เหตุการณ์ · ไม่นำไปคิดคะแนน เพราะแต่ละข้อแทบไม่เพิ่มอะไรจากการอยู่ในช่วงฟื้นตัวเอง และคะแนน LTH ให้ผลดีกว่า</p>
+    </section>
+
+    <section class="panel" id="cost-panel" data-nav="เส้นต้นทุน" hidden>
       <div class="panel-head">
         <div>
           <h2>เส้นเช็คราคา: ราคาเทียบเส้นต้นทุนสำคัญ <span class="count" id="cost-asof"></span></h2>
@@ -123,10 +212,38 @@
         </span>
       </div>
       <div class="chart-wrap chart-price"><canvas id="chart-cost" aria-label="กราฟราคา BTC เทียบเส้นต้นทุน"></canvas></div>
+
+      <h3 class="subhead">ซื้อตอนราคาอยู่ที่ต้นทุนผู้ถือระยะสั้นได้ผลไหม: หลักฐานย้อนหลัง <span class="count" id="cost-ev-since"></span></h3>
+      <p class="advice" id="cost-now"></p>
+      <div class="stats" id="cost-evidence"></div>
+      <p class="note">* นับวันที่ราคาห่างต้นทุนผู้ถือระยะสั้นไม่เกิน ±3% · "ครั้ง" = ช่วงที่ห่างกันเกิน 30 วัน · <b>ลงลึกสุดระหว่างทาง</b> = ราคาต่ำสุดภายใน 1 ปีหลังวันนั้น เทียบราคาวันนั้น · ตัวเลขดูดีเพราะส่วนใหญ่มาจากช่วงต้นของขาขึ้นในอดีต และกำไรแต่ละรอบเล็กลงเรื่อย ๆ · เป็นข้อมูลประกอบ ไม่คิดคะแนน (คะแนน LTH รวมข้อมูลคล้ายกันไว้แล้ว)</p>
       <p class="note"><b>วิธีอ่าน:</b> ราคาอยู่เหนือเส้น = คนกลุ่มนั้นโดยเฉลี่ยมีกำไร · ราคาหลุดลงไปใต้เส้น = โดยเฉลี่ยขาดทุน · ข้อมูลต้นทุนจาก Bitcoin Research Kit จึงอาจต่างจากตัวเลขในการ์ด STH-MVRV (bitcoin-data.com) เล็กน้อย · ไม่นำไปคิดคะแนน เพราะต้นทุนผู้ถือระยะสั้นถูกนับในคะแนน STH ผ่าน STH-MVRV แล้ว และ True Market Mean เคลื่อนไหวแทบเหมือน MVRV (ทดสอบ 2012–2026) · เส้น $70,000 คือเส้นเช็คทฤษฎีของ Howell ไม่ใช่จุดซื้อขาย</p>
     </section>
 
-    <section class="panel" id="bt-panel">
+    <section class="panel" id="rpl-panel" data-nav="กำไร/ขาดทุนที่ขายจริง" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>ตลาดขายกำไรหรือขาดทุน: กำไร/ขาดทุนที่ขายจริง <span class="count" id="rpl-asof"></span></h2>
+          <p class="muted">ทุกเหรียญที่ถูกขายหรือโอนในแต่ละวัน ขายได้ราคาสูงหรือต่ำกว่าที่ซื้อมา (Net Realized Profit/Loss) · แสดงเป็นข้อมูลประกอบ ไม่คิดคะแนน</p>
+        </div>
+        <div class="seg" id="rpl-range" role="group" aria-label="ช่วงเวลา">
+          <button type="button" data-v="1y">1 ปี</button>
+          <button type="button" data-v="2y" class="on">2 ปี</button>
+          <button type="button" data-v="4y">4 ปี</button>
+        </div>
+      </div>
+      <p class="advice" id="rpl-summary"></p>
+      <div class="stats" id="rpl-stats"></div>
+      <div class="chart-title"><span>กำไร (+) / ขาดทุน (−) ที่ขายจริงสุทธิรายสัปดาห์ (พันล้านดอลลาร์ · แกนขวา) เทียบราคา BTC (เส้น · แกนซ้าย)</span></div>
+      <div class="chart-wrap chart-etf"><canvas id="chart-rpl" aria-label="กราฟกำไรขาดทุนที่ขายจริงรายสัปดาห์เทียบราคา BTC"></canvas></div>
+
+      <h3 class="subhead">ขายขาดทุนต่อเนื่อง = จุดน่าสะสมจริงไหม: หลักฐานย้อนหลัง <span class="count" id="rpl-since"></span></h3>
+      <div class="stats" id="rpl-evidence"></div>
+      <p class="advice" id="rpl-verdict"></p>
+      <p class="note">* ข้อมูลจาก Bitcoin Research Kit (ทุกเหรียญบนเครือข่าย ไม่ใช่เฉพาะตลาดซื้อขาย) · วันล่าสุดที่ยังไม่จบไม่นับ · ตัวเลขคือค่ากลางของราคา BTC 3 เดือน / 1 ปีหลังวันที่เข้าเงื่อนไข · "ช่วง" = กลุ่มวันที่ห่างกันเกิน 30 วัน · ทดสอบเพราะไลฟ์ของ TonHor Palakorn (4 พ.ย. 2026) บอกว่าการขายขาดทุนต่อเนื่องหลังราคาฟื้นคือช่วงท้ายของการสะสม</p>
+    </section>
+
+    <section class="panel" id="bt-panel" data-nav="ทดสอบ DCA">
       <div class="panel-head">
         <div>
           <h2>ทดสอบย้อนหลัง: DCA ปกติ vs DCA ตามคะแนน <span class="count" id="bt-period"></span></h2>
@@ -166,7 +283,23 @@
       <p class="note">* คะแนนย้อนหลังคำนวณจากข้อมูลที่มีถึงวันนั้นเท่านั้น แต่เกณฑ์คะแนนถูกออกแบบโดยดูประวัติทั้งหมด ผลในอนาคตจึงอาจด้อยกว่านี้ · ไม่รวมค่าธรรมเนียม ภาษี และดอกเบี้ยของเงินสด · "LTH + Macro" = LTH 70% + Macro 30% (มีข้อมูล Macro ตั้งแต่ 2014) · คะแนน STH แกว่งเร็ว ไม่เหมาะกับ DCA ระยะยาว · ทยอยขาย = ขาย 2% ของ BTC ที่ถือต่อเดือน (0.5% ต่อสัปดาห์) — ⚠ ในอดีตการขายตามคะแนนทำให้ผลแย่ลงถ้าเริ่มก่อนปี 2018 เพราะขายเร็วเกินไปในรอบ 2017 และ 2021</p>
     </section>
 
-    <section class="panel" id="season-panel">
+    <section class="panel" id="halving-panel" data-nav="Halving" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>Halving ทุก ~4 ปี <span class="count" id="halving-asof"></span></h2>
+          <p class="muted">ทุก 210,000 บล็อก (ราว 4 ปี) BTC ใหม่ที่นักขุดได้ต่อบล็อกจะลดลงครึ่งหนึ่ง เหรียญใหม่เข้าตลาดน้อยลง — ดูว่าตอนนี้อยู่ตรงไหนของรอบ และรอบก่อน ๆ ราคาไปทางไหน</p>
+        </div>
+      </div>
+      <div class="stats" id="halving-stats"></div>
+      <div class="hv-clock" id="halving-clock"></div>
+      <p class="advice" id="halving-summary"></p>
+      <div class="chart-title">ราคาหลัง halving แต่ละรอบ (เท่าของราคาวัน halving, สเกล log) <span class="hv-keys" id="halving-legend"></span></div>
+      <div class="chart-wrap chart-halving"><canvas id="chart-halving" aria-label="กราฟราคา BTC หลัง halving แต่ละรอบ เทียบกับราคาวัน halving"></canvas></div>
+      <div class="table-wrap hv-table-wrap" id="halving-table"></div>
+      <p class="note" id="halving-note"></p>
+    </section>
+
+    <section class="panel" id="season-panel" data-nav="ช่วงเดียวกันทุกปี">
       <div class="panel-head">
         <div>
           <h2>ช่วงเดียวกันของทุกปี <span class="count" id="season-period"></span></h2>
@@ -196,7 +329,7 @@
       <p class="note">* ราคาเริ่ม = ราคาปิดของวันก่อนวันเริ่ม (คือราคาตอนต้นวันที่เริ่ม) · ราคาสิ้นสุด = ราคาปิดของวันสุดท้าย · ถ้าวันสิ้นสุดอยู่ก่อนวันเริ่มในปฏิทิน จะนับข้ามไปปีถัดไป · <b>ค่ากลาง</b> บอกปีทั่วไปได้ดีกว่าค่าเฉลี่ย เพราะ BTC มีบางปีที่ขึ้นแรงมาก · ช่วงเวลาตามฤดูกาลเป็นแค่ข้อสังเกต ไม่ได้คิดในคะแนน ใช้ประกอบกับคะแนน LTH (คอลัมน์ขวาสุด) ดีกว่าใช้เดี่ยว ๆ</p>
     </section>
 
-    <section class="panel" id="macro-panel" hidden>
+    <section class="panel" id="macro-panel" data-nav="สภาพคล่องโลก" hidden>
       <div class="panel-head">
         <div>
           <h2>สภาพคล่องโลก (Global Liquidity) นำราคา BTC ~3 เดือน</h2>
@@ -250,12 +383,28 @@
         <p class="note"><b>วิธีอ่าน:</b> r คือความสัมพันธ์ระหว่างการเปลี่ยนแปลง 13 สัปดาห์ของสภาพคล่องโลก กับการเปลี่ยนแปลง 13 สัปดาห์ของราคา เมื่อให้สภาพคล่องเกิดก่อนตามจำนวนสัปดาห์ในแถวนั้น · +1 = ไปทางเดียวกันทุกครั้ง, 0 = ไม่สัมพันธ์, −1 = สวนทางทุกครั้ง · ทองขยับพร้อมสภาพคล่องในสัปดาห์เดียวกัน ส่วนหนึ่งเพราะทั้งคู่วัดเป็นดอลลาร์ ดอลลาร์อ่อนทำให้งบดุล ECB/BoJ ที่แปลงเป็นดอลลาร์และราคาทองสูงขึ้นพร้อมกัน แต่ใช้สภาพคล่องคาดราคาทองล่วงหน้าไม่ได้ · ในยุค ETF ช่วงนำ 26 สัปดาห์ค่าของ BTC กลับเป็นลบ จึงควรดูช่วงราว 13 สัปดาห์เป็นหลัก · Howell ให้เหตุผลว่าตอนนี้ทองวิ่งตามสภาพคล่องจีน ซึ่งไม่ได้อยู่ในดัชนีของเรา ข้อนี้จึงยังทดสอบตรง ๆ ไม่ได้</p>
       </div>
 
+      <div id="credit-wrap" hidden>
+        <h3 class="subhead">ความเครียดหุ้นกู้ขยะ: ส่วนต่างดอกเบี้ย CCC และ High Yield <span class="count" id="credit-asof"></span> <span class="count">(คำถามจากคลิป Behind The Crypto EP.34)</span></h3>
+        <p class="advice" id="credit-summary"></p>
+        <div class="stats" id="credit-stats"></div>
+        <div class="chart-title">
+          ส่วนต่างดอกเบี้ยเหนือพันธบัตรรัฐบาลสหรัฐ (%)
+          <span class="legend">
+            <span class="key key-ccc"></span>CCC
+            <span class="key key-hy"></span>High Yield ทั้งตลาด
+            <span class="key key-price"></span>ราคา BTC (แกนขวา, สเกล log)
+          </span>
+        </div>
+        <div class="chart-wrap chart-score"><canvas id="chart-credit" aria-label="กราฟส่วนต่างดอกเบี้ยหุ้นกู้ขยะ CCC และ High Yield เทียบราคา BTC"></canvas></div>
+        <p class="note" id="credit-note"></p>
+      </div>
+
       <h3 class="subhead">ตัวชี้วัด Macro</h3>
       <div class="cards" id="macro-cards"></div>
       <p class="note">* สภาพคล่องโลก = งบดุล Fed − บัญชีกระทรวงการคลัง (TGA) − Reverse Repo + งบดุล ECB + งบดุล BoJ (แปลงเป็นดอลลาร์) จาก FRED อัปเดตรายสัปดาห์ ยังไม่รวมธนาคารกลางจีน (PBoC) และระบบธนาคารเงา จึงเป็นเวอร์ชันย่อของดัชนี Global Liquidity ของ Michael Howell · คะแนน Macro แยกจากคะแนน LTH/STH</p>
     </section>
 
-    <section class="panel" id="stable-panel" hidden>
+    <section class="panel" id="stable-panel" data-nav="Stablecoin" hidden>
       <div class="panel-head">
         <div>
           <h2>มีเงินใหม่เข้าตลาดคริปโตไหม: ยอด Stablecoin (USDT + USDC) <span class="count" id="stable-asof"></span></h2>
@@ -278,7 +427,7 @@
       <p class="note">* ยอดหมุนเวียนของ USDT และ USDC (Stablecoin สองตัวที่ใหญ่ที่สุด) จาก DefiLlama · ยอดลดลงได้ทั้งจากเงินไหลออกจากคริปโต และจากการย้ายไปถือ Stablecoin ตัวอื่น · r คือค่าความสัมพันธ์เชิงอันดับ: 0 = ไม่สัมพันธ์, +1 = ไปทางเดียวกันทุกครั้ง, −1 = สวนทางกันทุกครั้ง · ไม่นำไปคิดคะแนน LTH/STH/Macro เพราะทดสอบแล้วไม่ได้ช่วยบอกทิศทางราคาล่วงหน้า</p>
     </section>
 
-    <section class="panel" id="etf-panel" hidden>
+    <section class="panel" id="etf-panel" data-nav="ETF" hidden>
       <div class="panel-head">
         <div>
           <h2>เงินเข้าออก ETF <span class="etf-asset"></span> ในสหรัฐ <span class="count" id="etf-asof"></span></h2>
@@ -304,7 +453,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="ind-panel" data-nav="Indicators ทั้งหมด">
       <div class="panel-head">
         <div>
           <h2>Indicators ทั้งหมด <span class="count" id="ind-count"></span></h2>
@@ -326,7 +475,7 @@
       <div id="table" class="table-wrap" hidden></div>
     </section>
 
-    <section class="panel method">
+    <section class="panel method" id="method-panel" data-nav="วิธีคิดคะแนน">
       <h2>คิดคะแนนอย่างไร</h2>
       <ol>
         <li><b>คำนวณค่า indicator</b> จากข้อมูลจริง เช่น MVRV Z-Score จาก Market Cap/Realized Cap, Mayer Multiple จากราคา/MA200 ฯลฯ</li>
@@ -344,7 +493,7 @@
       </ol>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="sources-panel" data-nav="แหล่งข้อมูล">
       <h2>แหล่งข้อมูล</h2>
       <ul class="sources" id="sources"></ul>
     </section>

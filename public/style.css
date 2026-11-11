@@ -15,6 +15,9 @@
   --macro: #1baf7a;
   --future: rgba(11, 11, 11, 0.04);
   --price: #0b0b0b;
+  /* เทียบ 2 เหรียญ: A and B follow the LTH/STH line colors (redefined for dark mode there) */
+  --coin-a: var(--lth);
+  --coin-b: var(--sth);
   --z-strong-buy: #0ca30c;
   --z-buy: #74bf74;
   --z-neutral: #b3b1a9;
@@ -236,6 +239,8 @@ main > *, .hero, .panel, .card { min-width: 0; }
 .key-price { background: var(--price); }
 .key-howell { background: repeating-linear-gradient(90deg, var(--muted) 0 4px, transparent 4px 7px); }
 .key-macro { background: var(--macro); }
+.key-ccc { background: var(--down); }
+.key-hy { background: var(--z-sell); }
 .key-bills { background: var(--muted); height: 9px; width: 9px; }
 .subhead { font-size: 15px; margin: 22px 0 10px; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 12px; }
@@ -264,6 +269,26 @@ main > *, .hero, .panel, .card { min-width: 0; }
 .intraday-stats { font-size: 14px; margin: 2px 0 6px; }
 .intraday-scores { display: block; margin-top: 2px; }
 .chart-intraday { height: 240px; }
+/* เช็คลิสต์จุดต่ำสุด */
+.checklist { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 8px; }
+.checklist li { display: flex; gap: 10px; align-items: flex-start; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.checklist li.ck-extra { background: transparent; border: 1px dashed var(--border); }
+.ck { flex: none; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+.ck-yes { background: var(--z-strong-buy); color: #fff; }
+.ck-no { border: 2px solid var(--axis); }
+.ck-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+#bottom-panel tr.now td { background: var(--surface-2); }
+
+/* ปักหมุด A → B */
+.ab-readout { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; color: var(--text-2); margin: 4px 0 10px; }
+.ab-hint { color: var(--muted); }
+.ab-span { color: var(--text-2); }
+.ab-span b { color: var(--text); }
+.ab-tag { display: inline-block; min-width: 16px; text-align: center; border-radius: 4px; background: var(--accent); color: #fff; font-size: 11px; padding: 0 3px; }
+.ab-calc { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ab-amount { width: 90px; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; }
+.ab-clear { font: inherit; font-size: 12px; color: var(--text-2); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.coin-card.no-day .ab-readout { display: none; }
 .chart-intraday-score { height: 190px; }
 @media (max-width: 640px) {
   #day-table .coin-name { display: none; }
@@ -276,6 +301,95 @@ main > *, .hero, .panel, .card { min-width: 0; }
 .bt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; align-items: start; }
 .chart-bt { height: 280px; }
 .chart-season { height: 300px; }
+/* "เตือน STH 99" strip on the BTC, gold and altcoin pages (public/sth99.js) */
+.sth99 { padding: 12px 18px; }
+.sth99 > details > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 14px; }
+.sth99 > details > summary::-webkit-details-marker { display: none; }
+.sth99 > details > summary::before { content: '▸'; color: var(--muted); }
+.sth99 > details[open] > summary::before { content: '▾'; }
+.sth99 > details[open] > summary { margin-bottom: 10px; }
+.sth99-title { font-weight: 700; }
+.sth99-record { font-size: 12px; color: var(--muted); }
+.sth99.sth99-on { border: 2px solid var(--z-strong-buy); background: linear-gradient(var(--band-buy), var(--band-buy)), var(--surface); }
+.sth99-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
+table.sth99-now td, table.sth99-now th { padding: 6px 8px; }
+@media (max-width: 640px) {
+  .sth99 .sth99-sub { display: none; }
+  table.sth99-now .pill { display: none; }
+}
+table.sth99-now tr.sth99-hit td { background: var(--band-buy); font-weight: 600; }
+table.sth99-now .pill { margin-left: 6px; }
+.sth99-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; }
+table.sth99-levels-table td, table.sth99-levels-table th { padding: 6px 8px; }
+table.sth99-levels-table tr[data-level] { cursor: pointer; }
+table.sth99-levels-table tr[data-level]:hover td { background: var(--surface-2); }
+.sth99-notify { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; }
+.sth99-hits > summary { cursor: pointer; font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
+table.sth99-past td, table.sth99-past th { padding: 5px 8px; font-size: 12px; white-space: nowrap; }
+
+/* "สรุปวันนี้" at the top of the BTC page (public/today.js) */
+.today { padding: 16px 18px; }
+.today-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.today-head h2 { font-size: 18px; }
+.today-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; }
+.today-item { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); color: inherit; text-decoration: none; border: 1px solid transparent; }
+.today-item:hover { border-color: var(--axis); }
+.today-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+.today-label .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.today-value { font-size: 18px; font-weight: 700; }
+.today-value small { font-size: 12px; font-weight: 500; color: var(--text-2); }
+.today-note { font-size: 12px; color: var(--muted); }
+.today-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.today-nav-title { margin-right: 2px; font-size: 12px; color: var(--muted); }
+.today-nav a { padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: 12px; color: var(--text-2); text-decoration: none; }
+.today-nav a:hover { border-color: var(--axis); color: var(--text); }
+section[data-nav], #today-panel, .hero { scroll-margin-top: 12px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+.to-top { position: fixed; right: 16px; bottom: 16px; z-index: 20; padding: 8px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); font-size: 13px; color: var(--text); text-decoration: none; }
+.to-top[hidden] { display: none; }
+
+/* "ระบบทดลอง" paper-trading card (public/paper.js) */
+#paper-panel .bt-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+#paper-capital { width: 110px; }
+.chart-paper-price { height: 270px; margin-bottom: 14px; }
+.key-avg { background: repeating-linear-gradient(90deg, var(--accent) 0 5px, transparent 5px 8px); height: 3px; }
+.key-above { background: rgba(12, 163, 12, 0.35); height: 10px; width: 12px; }
+.key-below { background: rgba(208, 59, 59, 0.3); height: 10px; width: 12px; }
+.paper-legend { flex-wrap: wrap; gap: 4px 12px; }
+.paper-legend > span { white-space: nowrap; }
+.paper-legend .key { margin-left: 0; margin-right: 5px; vertical-align: middle; }
+.paper-mark { font-size: 11px; }
+.paper-mark.up { color: var(--z-strong-buy); }
+.paper-mark.down { color: var(--z-strong-sell); }
+.paper-badge { margin-right: 4px; vertical-align: 1px; }
+table.lined.paper-log td, table.lined.paper-log th, table.lined.paper-bt td, table.lined.paper-bt th { padding: 7px 10px; }
+@media (max-width: 640px) {
+  table.lined.paper-log td, table.lined.paper-log th, table.lined.paper-bt td, table.lined.paper-bt th { padding: 6px 7px; font-size: 13px; }
+  table.paper-log .coin-name, table.paper-bt .coin-name { font-size: 11px; }
+}
+
+/* Halving panel: where today sits in the ~4-year cycle */
+.chart-halving { height: 340px; }
+.hv-table-wrap { margin-top: 16px; }
+.hv-keys { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; }
+.hv-keys .key { margin-left: 0; margin-right: 5px; height: 4px; }
+.hv-clock { margin: 4px 0 6px; }
+.hv-track { position: relative; height: 14px; margin-top: 26px; border-radius: 7px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.hv-done { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 7px 0 0 7px; background: var(--accent); opacity: 0.22; }
+.hv-zone { position: absolute; top: 0; bottom: 0; opacity: 0.6; }
+.hv-zone.top, .hv-legend i.top { background: var(--z-sell); }
+.hv-zone.low, .hv-legend i.low { background: var(--z-buy); }
+.hv-now { position: absolute; top: -5px; bottom: -5px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--accent); }
+.hv-now b { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 3px; font-size: 12px; color: var(--accent); white-space: nowrap; }
+.hv-now.end b { left: auto; right: 0; transform: none; }
+.hv-now.start b { left: 0; transform: none; }
+.hv-ends { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.hv-ends span:nth-child(2) { color: var(--text-2); font-weight: 600; }
+.hv-ends span:last-child { text-align: right; }
+.hv-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.hv-legend i { display: inline-block; width: 12px; height: 10px; margin-right: 5px; border-radius: 2px; opacity: 0.6; vertical-align: middle; }
+table.hv-table th, table.hv-table td { padding: 8px 10px; }
+table.hv-table tr.now td { font-weight: 500; }
 .chart-etf { height: 280px; }
 .etf-steps { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 6px; color: var(--text-2); }
 .etf-steps b { color: var(--text); }
@@ -339,3 +453,30 @@ tr.now .pill { margin-left: 8px; }
 .sources li { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--grid); padding-bottom: 6px; }
 .sources .st { color: var(--muted); }
 .disclaimer { font-size: 12px; color: var(--muted); text-align: center; max-width: 900px; margin: 0 auto; }
+
+/* เทียบ 2 เหรียญ */
+.cmp-pick { display: inline-flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
+.cmp-pick .key { margin-left: 0; }
+.cmp-pick select { max-width: 190px; }
+.cmp-swap { padding: 4px 10px; font-size: 15px; line-height: 1.2; }
+.key-a { background: var(--coin-a); height: 4px; }
+.key-b { background: var(--coin-b); height: 4px; }
+table.cmp th .key, #cmp-summary .key, #cmp-record-title .key { margin-left: 0; margin-right: 5px; vertical-align: middle; }
+#compare-panel tr.now td { background: var(--surface-2); }
+#compare-panel .subhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.chart-cmp { height: 230px; }
+.chart-cmp-ratio { height: 170px; }
+.chart-cmp-score { height: 150px; }
+.cmp-prices { margin-top: 14px; }
+.chart-cmp-price { height: 210px; }
+.cmp-prices .chart-title .key { margin-left: 0; margin-right: 5px; vertical-align: middle; }
+@media (max-width: 640px) {
+  table.cmp .pill { display: none; }
+  .cmp-pick select { max-width: 140px; }
+}
+/* เทียบ 2 เหรียญ: จุด A → จุด B */
+.cmp-pins { margin: 6px 0 12px; font-size: 13px; color: var(--text-2); }
+.cmp-pin-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.cmp-pins .table-wrap { margin-top: 6px; }
+.cmp-pins td .key, .cmp-pin-line .key { margin-left: 0; margin-right: 5px; vertical-align: middle; }
+.cmp-pin-verdict { margin: 6px 0 0; font-size: 14px; color: var(--text); }

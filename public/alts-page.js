@@ -20,8 +20,9 @@ const RELIABILITY = {
   unknown: { tone: 'na', text: 'ข้อมูลไม่พอ' },
 };
 
-async function load() {
-  document.body.classList.add('loading');
+// quiet = the automatic refresh: the page is not dimmed while it loads.
+async function load({ quiet = false } = {}) {
+  if (!quiet) document.body.classList.add('loading');
   try {
     const res = await fetch('/api/alts', { cache: 'no-store' });
     const json = await res.json();
@@ -44,14 +45,21 @@ function render() {
   $('#updated').textContent = `อัปเดต ${fmtTime(d.generatedAt)}`;
   renderNetStatus(d.network, d.sources);
   renderTiles();
-  renderSnapshotCharts();
-  renderCoinCharts();
-  renderTable();
-  renderPooled();
-  $('#sources').innerHTML = d.sources.map((s) => {
-    const status = !s.ok ? `⚠ ดึงไม่ได้: ${esc(s.error)}` : s.stale ? `⚠ ใช้ข้อมูลเก่า (${fmtTime(s.fetchedAt)})` : `✓ ${fmtTime(s.fetchedAt)}`;
-    return `<li><span>${esc(s.name)}</span><span class="st">${status}</span></li>`;
-  }).join('');
+  // One section per browser task (see runSteps in common.js); the coin cards
+  // then draw one coin per task themselves.
+  runSteps('page', [
+    renderSnapshotCharts,
+    () => window.renderCompare?.(d),
+    renderCoinCharts,
+    renderTable,
+    renderPooled,
+    () => {
+      $('#sources').innerHTML = d.sources.map((s) => {
+        const status = !s.ok ? `⚠ ดึงไม่ได้: ${esc(s.error)}` : s.stale ? `⚠ ใช้ข้อมูลเก่า (${fmtTime(s.fetchedAt)})` : `✓ ${fmtTime(s.fetchedAt)}`;
+        return `<li><span>${esc(s.name)}</span><span class="st">${status}</span></li>`;
+      }).join('');
+    },
+  ]);
 }
 
 // ---------- summary tiles ----------
@@ -303,7 +311,9 @@ function renderCoinCharts() {
 
   const mode = state.range === 'all' ? 'all' : 'short';
   const fixedWidth = (axis) => { axis.width = Y_AXIS_WIDTH; };
-  for (const c of coins) {
+  // One coin per browser task, so 22 charts never freeze the page in one block.
+  runSteps('coin-charts', coins.map((c) => () => drawCoin(c)));
+  function drawCoin(c) {
     const s = ch.coins[c.symbol];
     let labels;
     let slice;
@@ -319,7 +329,7 @@ function renderCoinCharts() {
     // A coin listed after the window has nothing to draw (and a log axis needs data).
     const empty = !prices.some((v) => v != null);
     $(`#coin-${c.symbol}`).classList.toggle('no-day', empty);
-    if (empty) continue;
+    if (empty) return;
     const marker = { index: win ? win.at - win.from : null };
 
     const priceOpts = baseOptions(mode);
@@ -333,6 +343,7 @@ function renderCoinCharts() {
       options: priceOpts,
       plugins: [crosshair, hoverSync, dayMarker],
     });
+    attachPins(price, `coin-${c.symbol}`);
 
     const scoreOpts = baseOptions(mode);
     scoreOpts.scales.x.ticks.maxTicksLimit = 6;
@@ -445,10 +456,10 @@ bindDayPick('chart-date', 'chart-range', (day) => {
   state.day = day;
   if (state.data) renderCoinCharts();
 });
-$('#refresh').addEventListener('click', load);
+$('#refresh').addEventListener('click', () => load());
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (state.data) { renderSnapshotCharts(); renderCoinCharts(); }
 });
 
 load();
-setInterval(load, 60 * 1000);
+autoRefresh(() => load({ quiet: true }));

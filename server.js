@@ -1,6 +1,7 @@
 'use strict';
 // Zero-dependency server: serves ./public and the JSON APIs
-// /api/indicators (BTC), /api/gold, /api/alts (overview), /api/coin?symbol=ETH.
+// /api/indicators (BTC), /api/gold, /api/alts (overview), /api/coin?symbol=ETH,
+// /api/sth-alert (the STH ≥ 99 card, from all three), /api/paper (the paper-trading card).
 // Run: node server.js   (add --open to launch the browser)
 
 const http = require('http');
@@ -13,6 +14,8 @@ const { buildGold, goldScoresIfClosedAt } = require('./lib/gold');
 const { buildAlts, coinScoresIfClosedAt } = require('./lib/alts');
 const { COINS } = require('./lib/coins');
 const { scoreIntraday, utcBarOf, goldBarOf } = require('./lib/intraday');
+const { buildSth99 } = require('./lib/sth99');
+const { buildPaper, WINDOWS: PAPER_WINDOWS, DEFAULT_MA: PAPER_MA } = require('./lib/papertrade');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -74,6 +77,53 @@ async function getJson(pathname, query) {
   // Every page shows whether the server reached the internet on this rebuild.
   const json = JSON.stringify({ ...part, network: networkStatus() });
   cache.set(key, json);
+  return json;
+}
+
+// /api/sth-alert — the "เตือน STH 99" card on every page needs all three data
+// sets. A set built in the last few minutes is reused, so a page refreshing every
+// minute does not rebuild the other pages' data each time.
+const STH99_MAX_AGE = 3 * 60 * 1000;
+let sth99Memo = null;
+
+function recentData(kind) {
+  const m = memo[kind];
+  if (m?.data && Date.now() - m.at < STH99_MAX_AGE) return Promise.resolve(m.data);
+  return getData(kind);
+}
+
+async function sth99Json() {
+  const kinds = ['btc', 'gold', 'alts'];
+  const got = await Promise.allSettled(kinds.map(recentData));
+  const sets = Object.fromEntries(kinds.map((k, i) => [k, got[i].status === 'fulfilled' ? got[i].value : null]));
+  if (sth99Memo && kinds.every((k) => sth99Memo.sets[k] === sets[k])) return sth99Memo.json;
+  const card = buildSth99(sets, { round });
+  const missing = kinds.filter((k) => !sets[k]);
+  const json = JSON.stringify({ ...card, missing, generatedAt: new Date().toISOString() });
+  sth99Memo = { sets, json };
+  return json;
+}
+
+// /api/paper?ma=100&from=2026-11-12&capital=1000 — the "ระบบทดลอง" card: the
+// rules replayed on real closes from the chosen start date (no real money).
+const paperMemo = new Map();
+
+async function paperJson(query) {
+  const kinds = ['btc', 'gold', 'alts'];
+  const got = await Promise.allSettled(kinds.map(recentData));
+  const sets = Object.fromEntries(kinds.map((k, i) => [k, got[i].status === 'fulfilled' ? got[i].value : null]));
+  const maRaw = Number(query.get('ma'));
+  const ma = PAPER_WINDOWS.includes(maRaw) ? maRaw : PAPER_MA;
+  const fromRaw = String(query.get('from') || '');
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(fromRaw) ? fromRaw : null;
+  const capRaw = Number(query.get('capital'));
+  const capital = Number.isFinite(capRaw) && capRaw > 0 && capRaw <= 1e12 ? capRaw : 1000;
+  const key = `${ma}|${from}|${capital}`;
+  const hit = paperMemo.get(key);
+  if (hit && kinds.every((k) => hit.sets[k] === sets[k])) return hit.json;
+  const json = JSON.stringify({ ...buildPaper(sets, { ma, from, capital }, { round }), generatedAt: new Date().toISOString() });
+  if (paperMemo.size > 20) paperMemo.delete(paperMemo.keys().next().value);
+  paperMemo.set(key, { sets, json });
   return json;
 }
 
@@ -144,6 +194,26 @@ const server = http.createServer(async (req, res) => {
       console.error(err);
       send(req, res, 500, JSON.stringify({ error: err.message }), MIME['.json']);
     });
+    return;
+  }
+
+  if (url.pathname === '/api/paper') {
+    try {
+      send(req, res, 200, await paperJson(url.searchParams), MIME['.json']);
+    } catch (err) {
+      console.error(err);
+      send(req, res, 500, JSON.stringify({ error: err.message }), MIME['.json']);
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/sth-alert') {
+    try {
+      send(req, res, 200, await sth99Json(), MIME['.json']);
+    } catch (err) {
+      console.error(err);
+      send(req, res, 500, JSON.stringify({ error: err.message }), MIME['.json']);
+    }
     return;
   }
 

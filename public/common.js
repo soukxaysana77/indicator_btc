@@ -5,16 +5,81 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+// Number/date formatting is built once here. toLocaleString(locale, options) makes a
+// new Intl formatter on every call (≈ 0.08 ms), and a chart axis labels every one
+// of its ~1,500 dates on each update — that alone made the charts stutter.
+const USD_0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+const USD_2 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+const USD_SIG4 = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 4 });
+const TH_DATE = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { dateStyle: 'medium', timeZone: 'UTC' });
+const TH_MONTH = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const TH_TIME = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' });
+// Remembers fn(key) — for ISO dates, which repeat on every chart update.
+function memo(fn) {
+  const seen = new Map();
+  return (key) => {
+    let v = seen.get(key);
+    if (v === undefined) { v = fn(key); seen.set(key, v); }
+    return v;
+  };
+}
+// An ISO date (YYYY-MM-DD) through a formatter; '–' if it is not a date.
+const isoDay = (fmt) => memo((d) => {
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isNaN(t) ? '–' : fmt.format(t);
+});
+
 // Whole dollars from $100 up, cents down to $1, 4 significant digits below that (PEPE-sized prices).
 const fmtUsd = (v) => {
   if (v == null || !Number.isFinite(v)) return '–';
-  if (Math.abs(v) >= 100) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-  if (Math.abs(v) >= 1) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
-  return `$${v.toLocaleString('en-US', { maximumSignificantDigits: 4 })}`;
+  if (Math.abs(v) >= 100) return `$${USD_0.format(v)}`;
+  if (Math.abs(v) >= 1) return `$${USD_2.format(v)}`;
+  return `$${USD_SIG4.format(v)}`;
 };
 const fmtPct = (v, d = 1) => (v == null ? '–' : `${v >= 0 ? '+' : ''}${v.toFixed(d)}%`);
-const fmtTime = (iso) => new Date(iso).toLocaleString('th-TH-u-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' });
-const fmtDate = (d) => new Date(`${d}T00:00:00Z`).toLocaleDateString('th-TH-u-ca-gregory', { dateStyle: 'medium', timeZone: 'UTC' });
+const fmtTime = (x) => {
+  const t = new Date(x).getTime();
+  return Number.isNaN(t) ? '–' : TH_TIME.format(t);
+};
+const fmtDate = isoDay(TH_DATE);
+const fmtMonth = isoDay(TH_MONTH);
+
+// Runs the steps one per browser task, so a full redraw is many short pieces
+// instead of one long freeze: the page keeps scrolling and painting in between.
+// Calling again with the same name cancels the steps the older call has not run.
+// A failing step is reported and the rest still run.
+const stepRuns = {};
+function runSteps(name, steps) {
+  const token = (stepRuns[name] || 0) + 1;
+  stepRuns[name] = token;
+  const next = (k) => {
+    if (stepRuns[name] !== token || k >= steps.length) return;
+    try {
+      steps[k]();
+    } catch (err) {
+      console.error(err);
+      const box = document.getElementById('error');
+      if (box) { box.textContent = `แสดงผลบางส่วนไม่สำเร็จ: ${err.message}`; box.hidden = false; }
+    }
+    if (k + 1 < steps.length) setTimeout(() => next(k + 1), 0);
+  };
+  next(0);
+}
+
+// Calls fn every minute. A hidden tab skips its turns (no redrawing nobody sees)
+// and catches up as soon as it is shown again.
+function autoRefresh(fn, ms = 60 * 1000) {
+  let last = Date.now();
+  const run = () => {
+    if (document.hidden) return;
+    last = Date.now();
+    fn();
+  };
+  setInterval(run, ms);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && Date.now() - last >= ms) run();
+  });
+}
 const toneOf = (s) => (s == null ? 'na' : s >= 80 ? 'strong-buy' : s >= 60 ? 'buy' : s >= 40 ? 'neutral' : s >= 20 ? 'sell' : 'strong-sell');
 
 // ---------- header: online / offline and what is saved on this computer ----------
@@ -105,37 +170,39 @@ const baselineAt = (value) => ({
   },
 });
 
-// Mirrors the hovered point onto the partner chart (see pair()). Runs after the
+// Mirrors the hovered point onto the partner charts (see pair()). Runs after the
 // built-in tooltip plugin has processed the event, so the active index is current.
 const hoverSync = {
   id: 'hoverSync',
   afterEvent(chart, args) {
-    const partner = chart.$partner;
-    if (!partner) return;
+    const partners = chart.$partners;
+    if (!partners) return;
     const active = chart.tooltip.getActiveElements();
     const idx = args.event.type === 'mouseout' || !active.length ? null : active[0].index;
-    if (idx === partner.$syncedIndex) return;
-    partner.$syncedIndex = idx;
-    const els = idx == null
-      ? []
-      : partner.data.datasets
-        .map((ds, datasetIndex) => ({ datasetIndex, index: idx }))
-        .filter((e) => partner.data.datasets[e.datasetIndex].data[idx] != null);
-    partner.setActiveElements(els);
-    partner.tooltip.setActiveElements(els, { x: 0, y: 0 });
-    partner.update('none');
+    for (const partner of partners) {
+      if (idx === partner.$syncedIndex) continue;
+      partner.$syncedIndex = idx;
+      const els = idx == null
+        ? []
+        : partner.data.datasets
+          .map((ds, datasetIndex) => ({ datasetIndex, index: idx }))
+          .filter((e) => partner.data.datasets[e.datasetIndex].data[idx] != null);
+      partner.setActiveElements(els);
+      partner.tooltip.setActiveElements(els, { x: 0, y: 0 });
+      // Redraw only: update() would re-measure the whole axis on every mouse move.
+      partner.render();
+    }
   },
 };
 
-function pair(a, b) {
-  a.$partner = b;
-  b.$partner = a;
+// Charts on the same dates that show the hovered day together (two or more).
+function pair(...group) {
+  for (const c of group) c.$partners = group.filter((x) => x !== c);
 }
 
 function tickLabel(label, mode) {
-  const d = new Date(`${label}T00:00:00Z`);
-  if (mode === 'all') return String(d.getUTCFullYear());
-  return d.toLocaleDateString('th-TH-u-ca-gregory', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+  if (mode === 'all') return String(label).slice(0, 4);
+  return fmtMonth(label);
 }
 
 const tooltipStyle = () => ({
@@ -171,6 +238,7 @@ function baseOptions(mode) {
           color: cssVar('--muted'),
           maxRotation: 0,
           autoSkip: true,
+          autoSkipPadding: 14, // a gap between month labels on narrow screens
           maxTicksLimit: 9,
           callback(v) { return tickLabel(this.getLabelForValue(v), mode); },
         },
@@ -286,6 +354,130 @@ const dayMarker = {
     ctx.restore();
   },
 };
+
+// ---------- ปักหมุด A → B: % change between two clicked points on a price chart ----------
+// Click once for A, again for B (a third click starts over). Pins are kept by
+// label (date or time) so they survive the charts being rebuilt every minute.
+
+const abPins = {}; // key → { a, b, amount }, a/b = { label, price }
+
+const daysBetween = (a, b) => {
+  const days = Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+  const about = days >= 365 ? ` (≈ ${(days / 365.25).toFixed(1)} ปี)` : days >= 60 ? ` (≈ ${(days / 30.44).toFixed(1)} เดือน)` : '';
+  return `ใช้เวลา <b>${days.toLocaleString('en-US')} วัน</b>${about}`;
+};
+const timeBetween = (a, b) => {
+  const m = (s) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
+  const mins = m(b) - m(a);
+  return `ใช้เวลา <b>${mins >= 60 ? `${Math.floor(mins / 60)} ชม. ${mins % 60} นาที` : `${mins} นาที`}</b>`;
+};
+
+const abPinPlugin = {
+  id: 'abPins',
+  afterDatasetsDraw(chart) {
+    const st = chart.$pinKey && abPins[chart.$pinKey];
+    if (!st?.a) return;
+    const { ctx, chartArea, scales } = chart;
+    const pts = [['A', st.a], ['B', st.b]].flatMap(([name, p]) => {
+      const i = p ? chart.data.labels.indexOf(p.label) : -1;
+      return i < 0 ? [] : [{ name, x: scales.x.getPixelForValue(i), y: scales.y.getPixelForValue(p.price) }];
+    });
+    ctx.save();
+    if (st.b && pts.length === 2) {
+      ctx.fillStyle = cssVar(st.b.price >= st.a.price ? '--band-buy' : '--band-sell');
+      ctx.fillRect(Math.min(pts[0].x, pts[1].x), chartArea.top, Math.abs(pts[1].x - pts[0].x), chartArea.bottom - chartArea.top);
+    }
+    for (const p of pts) {
+      ctx.strokeStyle = cssVar('--accent');
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x, chartArea.top + 16);
+      ctx.lineTo(p.x, chartArea.bottom);
+      ctx.stroke();
+      ctx.fillStyle = cssVar('--accent');
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(p.x - 8, chartArea.top, 16, 16);
+      ctx.fillStyle = '#fff';
+      ctx.font = `700 11px ${CHART_FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.name, p.x, chartArea.top + 8);
+    }
+    ctx.restore();
+  },
+};
+if (window.Chart) Chart.register(abPinPlugin);
+
+// Makes a price chart pinnable; the result line goes right under its chart.
+// cfg.fmtLabel shows a label (default: date), cfg.span the time between two labels.
+// The key sits on the chart itself (not in its options), so showing the pins
+// needs only a redraw, never a full chart update.
+function attachPins(chart, key, cfg = {}) {
+  chart.$pinKey = key;
+  chart.canvas.style.cursor = 'crosshair';
+  chart.options.onClick = (evt) => {
+    const i = Math.round(chart.scales.x.getValueForPixel(evt.x));
+    const label = chart.data.labels[i];
+    const price = chart.data.datasets[0].data[i];
+    if (label == null || price == null) return;
+    const st = abPins[key] || (abPins[key] = { amount: 100 });
+    const p = { label, price };
+    if (!st.a || st.b) { st.a = p; st.b = null; } else if (label !== st.a.label) {
+      st.b = p;
+      if (st.b.label < st.a.label) [st.a, st.b] = [st.b, st.a]; // A is always the earlier point
+    }
+    chart.render();
+    renderPins(chart, key, cfg);
+  };
+  if (abPins[key]?.a) chart.render();
+  renderPins(chart, key, cfg);
+}
+
+function renderPins(chart, key, { fmtLabel = fmtDate, span = daysBetween } = {}) {
+  const wrap = chart.canvas.closest('.chart-wrap');
+  let box = wrap.nextElementSibling;
+  if (!box?.classList.contains('ab-readout')) {
+    box = document.createElement('div');
+    box.className = 'ab-readout';
+    wrap.after(box);
+  }
+  const st = abPins[key];
+  const clear = '<button type="button" class="ab-clear">ล้างหมุด</button>';
+  if (!st?.a) {
+    box.innerHTML = '<span class="ab-hint">ปักหมุด: คลิกบนกราฟราคา 2 จุด (A แล้ว B) เพื่อดูว่าขึ้นลงกี่ % และเงินลงทุนจะกลายเป็นเท่าไร</span>';
+    return;
+  }
+  const point = (name, p) => `<span><b class="ab-tag">${name}</b> ${fmtLabel(p.label)} <b>${fmtUsd(p.price)}</b></span>`;
+  if (!st.b) {
+    box.innerHTML = `${point('A', st.a)}<span class="ab-hint">คลิกอีกจุดเพื่อเลือก B</span>${clear}`;
+  } else {
+    const ratio = st.b.price / st.a.price;
+    const pct = (ratio - 1) * 100;
+    box.innerHTML = `${point('A', st.a)}<span>→</span>${point('B', st.b)}
+      <span class="${pct >= 0 ? 'up' : 'down'}"><b>${pct >= 0 ? '▲' : '▼'} ${fmtPct(pct, 2)}</b></span>
+      <span class="ab-span">${span(st.a.label, st.b.label)}</span>
+      <label class="ab-calc">ลงทุนที่ A <input type="number" class="ab-amount" min="0" step="any" value="${st.amount}"> → ที่ B ได้ <b class="ab-value"></b> <span class="ab-profit"></span></label>
+      ${clear}`;
+    const input = box.querySelector('.ab-amount');
+    const show = () => {
+      const amount = Number(input.value) || 0;
+      st.amount = amount;
+      const value = amount * ratio;
+      const fmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      box.querySelector('.ab-value').textContent = fmt(value);
+      box.querySelector('.ab-profit').innerHTML = `(<span class="${value >= amount ? 'up' : 'down'}">${value >= amount ? 'กำไร +' : 'ขาดทุน −'}${fmt(Math.abs(value - amount))}</span>)`;
+    };
+    input.addEventListener('input', show);
+    show();
+  }
+  box.querySelector('.ab-clear').addEventListener('click', () => {
+    delete abPins[key];
+    chart.render();
+    renderPins(chart, key, { fmtLabel, span });
+  });
+}
 
 const lineStyle = (color, width = 2) => ({
   borderColor: color,

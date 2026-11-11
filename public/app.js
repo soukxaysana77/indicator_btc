@@ -50,8 +50,10 @@ const API = PAGE.api || '/api/indicators';
 
 // ---------- data ----------
 
-async function load() {
-  document.body.classList.add('loading');
+// quiet = the automatic refresh (see autoRefresh in common.js): the page is not
+// dimmed while it loads — only the ↻ button does that.
+async function load({ quiet = false } = {}) {
+  if (!quiet) document.body.classList.add('loading');
   try {
     const res = await fetch(API, { cache: 'no-store' });
     const json = await res.json();
@@ -90,15 +92,25 @@ function render() {
     $('#hero-macro').innerHTML = '<div class="skeleton">ยังดึงข้อมูลสภาพคล่องจาก FRED ไม่ได้ในขณะนี้</div>';
   }
   if (state.data.evidence) renderEvidence(state.data.evidence);
-  renderCharts();
-  renderCostBasis();
-  renderMacro();
-  renderStablecoins();
-  window.renderBacktest?.(state.data);
-  window.renderSeason?.(state.data);
-  window.renderEtf?.(state.data);
-  renderIndicators();
-  renderSources();
+  // The charts and cards below, one per browser task (see runSteps in common.js).
+  const d = state.data;
+  runSteps('page', [
+    renderCharts,
+    renderCostBasis,
+    () => window.renderBottomCheck?.(d),
+    () => window.renderRealized?.(d),
+    renderMacro,
+    () => window.renderCredit?.(d),
+    renderStablecoins,
+    () => window.renderEtf?.(d),
+    () => window.renderBacktest?.(d),
+    () => window.renderHalving?.(d),
+    () => window.renderSeason?.(d),
+    renderIndicators,
+    renderSources,
+    // the "สรุปวันนี้" card (today.js) reads the same data once the panels are drawn
+    () => window.dispatchEvent(new CustomEvent('btc:data', { detail: d })),
+  ]);
 }
 
 // ---------- header ----------
@@ -295,6 +307,7 @@ function renderCharts() {
     options: priceOpts,
     plugins: [crosshair, hoverSync, dayMarker],
   });
+  attachPins(charts.price, 'main');
 
   const scoreOpts = baseOptions(mode);
   scoreOpts.plugins.tooltip.callbacks.label = (item) => ` ${item.dataset.label}: ${item.parsed.y == null ? '–' : `${Math.round(item.parsed.y)}%`}`;
@@ -345,7 +358,8 @@ function renderDayReadout(h, at) {
 
 const intradayCache = new Map(); // "asset|day" → { data } or { error }, plus when it was fetched
 let intradayChart = null;
-const thaiTime = (ms) => new Date(ms).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+const TH_CLOCK = new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Bangkok' });
+const thaiTime = (ms) => TH_CLOCK.format(ms);
 const intradayAsset = () => (state.data.asset === 'gold' ? 'GOLD' : state.data.asset === 'alt' ? state.data.symbol : 'BTC');
 
 // Dots with a label at the day's high and low (options.plugins.hiLoMarks.points).
@@ -498,6 +512,7 @@ function drawIntraday(entry) {
     options: opts,
     plugins: [baselineAt(open), crosshair, hoverSync, hiLoMarks, barSplit],
   });
+  attachPins(intradayChart, `intraday-${d.asset}-${d.day}`, { fmtLabel: (t) => `${t} น.`, span: timeBetween });
   if (!sc) return;
 
   $('#intraday-score-wrap').hidden = false;
@@ -536,7 +551,8 @@ const tile = (label, value, sub) => `<div class="stat"><div class="stat-label">$
 // USD billions without a sign (direction is shown by an arrow or by signedBn).
 const usdBn = (v, digits = 0) => `$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })} พันล้าน`;
 const signedBn = (v, digits = 0) => `${v < 0 ? '-' : '+'}${usdBn(v, digits)}`;
-const monthName = (ym) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString('th-TH-u-ca-gregory', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+const TH_MONTH_YEAR = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+const monthName = (ym) => TH_MONTH_YEAR.format(Date.parse(`${ym}-01T00:00:00Z`));
 const usdAxis = () => ({
   position: 'right',
   grid: { color: cssVar('--grid') },
@@ -757,6 +773,7 @@ function renderCostBasis() {
     where(l),
     `${COST_LINES[l.id].what}${l.id === 'howell' ? ` (Capital Wars ${fmtDate(l.asOf)})` : ` · ข้อมูล ณ ${fmtDate(l.asOf)}`}`,
   )).join('');
+  renderCostEvidence(cb);
 
   if (!window.Chart) return;
   const ch = cb.chart;
@@ -782,6 +799,35 @@ function renderCostBasis() {
     options: opts,
     plugins: [crosshair],
   });
+}
+
+// Price near the STH cost basis in a cheap market (LTH ≥ 70): what followed, since 2014.
+function renderCostEvidence(cb) {
+  const ev = cb.evidence;
+  if (!ev || !$('#cost-evidence')) return;
+  const [h1, h2] = ev.horizons; // 90, 365
+  const row = (id) => ev.rows.find((r) => r.id === id);
+  const arrow = (v) => (v == null ? '–' : `<span class="${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '▲' : '▼'} ${fmtPct(v, 0)}</span>`);
+  const sub = (r, showEpisodes) => {
+    const a = r[h2];
+    const b = r[h1];
+    if (!a?.n) return 'ข้อมูลยังไม่พอ';
+    const ep = showEpisodes ? ` (${a.episodes} ครั้ง)` : '';
+    return `1 ปีต่อมาราคาขึ้น ${Math.round(a.upPct)}% ของครั้ง${ep} · ระหว่างทางลงลึกสุด ค่ากลาง ${fmtPct(a.ddMedian, 0)} แย่สุด ${fmtPct(a.ddWorst, 0)} · 3 เดือนต่อมา ค่ากลาง ${fmtPct(b.median, 0)} ขึ้น ${Math.round(b.upPct)}% ของครั้ง`;
+  };
+  const strong = row('nearCheap');
+  $('#cost-ev-since').textContent = `(ตั้งแต่ ${new Date(`${ev.from}T00:00:00Z`).getUTCFullYear()})`;
+  $('#cost-evidence').innerHTML = [
+    tile('วันทั่วไป (ไว้เทียบ) → ราคา 1 ปีต่อมา', arrow(row('all')[h2].median), sub(row('all'), false)),
+    tile(`ราคาห่างต้นทุน STH ไม่เกิน ±${ev.nearPct}% → ราคา 1 ปีต่อมา`, arrow(row('near')[h2].median), sub(row('near'), true)),
+    tile(`ห่างต้นทุน STH ±${ev.nearPct}% <b>และ</b> คะแนน LTH ≥ ${ev.lthMin} → ราคา 1 ปีต่อมา`, arrow(strong[h2].median), sub(strong, true)),
+  ].join('');
+  const now = cb.now;
+  const pending = strong.episodes - (strong[h2]?.episodes || 0);
+  const gap = `ราคาห่างต้นทุน STH ${fmtPct(now.sthGapPct, 1)} และคะแนน LTH ${now.lth == null ? '–' : Math.round(now.lth)}`;
+  $('#cost-now').innerHTML = now.near && now.cheap
+    ? `<b>ตอนนี้เข้าเงื่อนไข:</b> ${gap} — ในอดีตครบ 1 ปีแล้ว ${strong[h2].episodes} ครั้ง ${strong[h2].upPct >= 100 ? 'ราคาสูงขึ้นทุกครั้ง' : `ราคาสูงขึ้น ${Math.round(strong[h2].upPct)}% ของวัน`}${pending > 0 ? ` (อีก ${pending} ครั้งรวมรอบนี้ยังไม่ครบ 1 ปี)` : ''} แต่ระหว่างทางเคยลงต่ออีกถึง ${fmtPct(strong[h2].ddWorst, 0)}`
+    : `<b>ตอนนี้ยังไม่เข้าเงื่อนไข:</b> ${gap} (ต้องห่างไม่เกิน ±${ev.nearPct}% และคะแนน ≥ ${ev.lthMin})`;
 }
 
 // ---------- stablecoins ----------
@@ -977,10 +1023,10 @@ if ($('#stable-range')) bindSeg('stable-range', 'stableRange', renderStablecoins
 if ($('#cost-range')) bindSeg('cost-range', 'costRange', renderCostBasis);
 bindSeg('horizon', 'horizon', renderIndicators);
 bindSeg('view', 'view', renderIndicators);
-$('#refresh').addEventListener('click', load);
+$('#refresh').addEventListener('click', () => load());
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (state.data) { renderCharts(); renderCostBasis(); renderMacro(); renderStablecoins(); window.renderBacktest?.(state.data); window.renderSeason?.(state.data); window.renderEtf?.(state.data); }
+  if (state.data) { renderCharts(); renderCostBasis(); renderMacro(); window.renderCredit?.(state.data); renderStablecoins(); window.renderBacktest?.(state.data); window.renderHalving?.(state.data); window.renderSeason?.(state.data); window.renderEtf?.(state.data); window.renderRealized?.(state.data); }
 });
 
 load();
-setInterval(load, 60 * 1000);
+autoRefresh(() => load({ quiet: true }));
