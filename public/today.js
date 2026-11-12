@@ -40,13 +40,21 @@
     // The STH alert at the level chosen on its card.
     const s = got.sth;
     if (s) {
-      const { d: a, level } = s;
-      const hits = a.now.filter((x) => x.sth != null && x.sth >= level);
-      const top = a.now.filter((x) => x.sth != null && x.sth < level).slice(0, 2);
-      const wait = a.byLevel[level]?.wait?.days;
-      items.push(hits.length
-        ? item('#sth99-panel', `เตือน STH ${level}`, `⚠ ${hits.map((x) => `${esc(symName(x.symbol))} ${Math.floor(x.sth)}`).join(', ')}`, 'ยังไม่ปิดวัน รอดูตอนใกล้ 07:00 น.', 'strong-buy')
-        : item('#sth99-panel', `เตือน STH ${level}`, 'ยังไม่มี', `ใกล้สุด ${top.map((x) => `${esc(symName(x.symbol))} ${Math.round(x.sth)}`).join(', ')}${wait != null ? ` · รอมาแล้ว ${wait} วัน` : ''}`, 'na'));
+      const { d: a, level, asset } = s;
+      const one = asset && asset !== 'ALL' ? a.now.find((x) => x.symbol === asset) : null;
+      const scope = one ? [one] : a.now;
+      const hits = scope.filter((x) => x.sth != null && x.sth >= level);
+      const label = `เตือน STH ${level}${one ? ` · ${esc(symName(one.symbol))}` : ''}`;
+      if (hits.length) {
+        items.push(item('#sth99-panel', label, `⚠ ${hits.map((x) => `${esc(symName(x.symbol))} ${Math.floor(x.sth)}`).join(', ')}`, 'ยังไม่ปิดวัน รอดูตอนใกล้ 07:00 น.', 'strong-buy'));
+      } else if (one) {
+        const wait = a.byLevel[level]?.perAsset?.[one.symbol]?.waitDays;
+        items.push(item('#sth99-panel', label, 'ยังไม่ถึง', `ตอนนี้ ${one.sth == null ? '–' : Math.round(one.sth)} ห่างอีก ${one.sth == null ? '–' : (level - one.sth).toFixed(1)} จุด${wait != null ? ` · รอมาแล้ว ${wait} วัน` : ''}`, 'na'));
+      } else {
+        const top = a.now.filter((x) => x.sth != null && x.sth < level).slice(0, 2);
+        const wait = a.byLevel[level]?.wait?.days;
+        items.push(item('#sth99-panel', label, 'ยังไม่มี', `ใกล้สุด ${top.map((x) => `${esc(symName(x.symbol))} ${Math.round(x.sth)}`).join(', ')}${wait != null ? ` · รอมาแล้ว ${wait} วัน` : ''}`, 'na'));
+      }
     }
 
     items.push(scoreItem('#hero-sth', 'สภาวะระยะสั้น (STH)', d.composite?.sth, 'ข้อมูลประกอบ ใช้จับจังหวะไม่ได้'));

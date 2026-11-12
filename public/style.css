@@ -311,7 +311,7 @@ main > *, .hero, .panel, .card { min-width: 0; }
 .sth99-title { font-weight: 700; }
 .sth99-record { font-size: 12px; color: var(--muted); }
 .sth99.sth99-on { border: 2px solid var(--z-strong-buy); background: linear-gradient(var(--band-buy), var(--band-buy)), var(--surface); }
-.sth99-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 16px; align-items: start; }
+.sth99-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 16px; align-items: start; }
 table.sth99-now td, table.sth99-now th { padding: 6px 8px; }
 @media (max-width: 640px) {
   .sth99 .sth99-sub { display: none; }
@@ -320,6 +320,12 @@ table.sth99-now td, table.sth99-now th { padding: 6px 8px; }
 table.sth99-now tr.sth99-hit td { background: var(--band-buy); font-weight: 600; }
 table.sth99-now .pill { margin-left: 6px; }
 .sth99-levels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; }
+.sth99-seg { flex-wrap: wrap; }
+.sth99-seg button { min-width: 34px; padding: 4px 7px; }
+.linklike { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.linklike:hover { color: var(--accent); }
+table.sth99-now tr.sth99-sel td { background: var(--surface-2); }
+table.sth99-now tr.sth99-sel td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 table.sth99-levels-table td, table.sth99-levels-table th { padding: 6px 8px; }
 table.sth99-levels-table tr[data-level] { cursor: pointer; }
 table.sth99-levels-table tr[data-level]:hover td { background: var(--surface-2); }
