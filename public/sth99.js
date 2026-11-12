@@ -34,9 +34,15 @@
   const durShort = (d) => (d == null ? '–' : d >= 365 ? `${(d / 365.25).toFixed(1)} ปี` : `${d} วัน`);
   const yearOf = (d) => new Date(`${d}T00:00:00Z`).getUTCFullYear();
 
+  const RANGE_KEY = 'sth99-range';
+  const RANGE_DAYS = { '1y': 366, '4y': 1462, all: Infinity };
   let last = null;
   let level = store.get(LEVEL_KEY, null);
   let asset = store.get(ASSET_KEY, ALL);
+  let range = RANGE_DAYS[store.get(RANGE_KEY, 'all')] ? store.get(RANGE_KEY, 'all') : 'all';
+  const seriesCache = {}; // symbol → { at, data } from /api/sth-series
+  let priceChart = null;
+  let scoreChart = null;
   let hitsOpen = false; // "ดูทุกครั้ง" list stays open across the 1-minute refresh
   const seenAlerts = new Set(); // alerts shown in this visit (opens the card once each)
 
@@ -177,6 +183,23 @@
         ${tile('ถ้าถือ 7 วัน', day7?.n ? `${share(day7)} (${pctOf(day7)}%)` : '–', day7?.n ? `ค่ากลาง ${signed(day7.median)} · แย่สุด ${signed(day7.worst)}` : '')}
         ${tile('จำนวนครั้ง', `${next?.n ?? 0} วัน · ${events} เหตุการณ์`, one ? `${esc(who)} ตั้งแต่ ${one.scoredSince ? yearOf(one.scoredSince) : '–'} · ตัวอย่างของเหรียญเดียวมีน้อย ดูแบบ "ทุกสินทรัพย์" ประกอบด้วย` : `จาก ${d.assets} สินทรัพย์ในเว็บ ตั้งแต่ ${yearOf(d.since)} · หลายเหรียญมักถึงพร้อมกันในวันตลาดถล่ม ยิ่งระดับสูงตัวอย่างยิ่งน้อย`)}
       </div>
+      ${one ? `<div class="sth99-chart">
+        <div class="chart-title">
+          <span>ราคา ${esc(who)} · จุด = วันที่ STH ปิดที่ ${L} ขึ้นไป</span>
+          <span class="legend sth99-legend">
+            <span><i class="sth99-dot win"></i>วันถัดไปขึ้นเกิน 1%</span>
+            <span><i class="sth99-dot lose"></i>ไม่ถึง 1%</span>
+            <span><i class="sth99-dot wait"></i>รอผล</span>
+          </span>
+          <div class="seg sth99-range" role="group" aria-label="ช่วงเวลาของกราฟ">
+            ${[['1y', '1 ปี'], ['4y', '4 ปี'], ['all', 'ทั้งหมด']].map(([v, t]) => `<button type="button" data-range="${v}" class="${v === range ? 'on' : ''}">${t}</button>`).join('')}
+          </div>
+        </div>
+        <div class="chart-wrap chart-sth99-price"><canvas id="sth99-price" aria-label="กราฟราคา ${esc(who)} พร้อมจุดวันที่คะแนน STH ถึง ${L}"></canvas></div>
+        <div class="chart-title">คะแนน STH ของ ${esc(who)} · เส้นประ = ระดับ ${L} (พื้นเขียว = ถึงระดับ)</div>
+        <div class="chart-wrap chart-sth99-score"><canvas id="sth99-score" aria-label="กราฟคะแนน STH ของ ${esc(who)} เทียบเส้นระดับ ${L}"></canvas></div>
+        <p class="coin-name" id="sth99-chart-msg"></p>
+      </div>` : ''}
       <div class="sth99-grid">
         <div class="table-wrap">
           <table class="sth99-now">
@@ -206,10 +229,138 @@
       <p class="note">* STH ของเหรียญอื่นและทองคำนวณจาก RSI, ระยะห่างจากเส้น 50 วัน, Bollinger %B ฯลฯ ใช้แต่ข้อมูลถึงวันนั้น สถิตินี้จึงไม่ได้แอบใช้ข้อมูลอนาคต · ผลคิดจากราคาปิดถึงราคาปิด ไม่รู้ว่าระหว่าง 24 ชั่วโมงนั้นลงลึกแค่ไหน และยังไม่หักค่าธรรมเนียม (ซื้อ + ขายราว 0.2%) · เหตุการณ์ = วันที่ถึงระดับนั้นที่ห่างกันเกิน 7 วัน · "ใกล้" = ต่ำกว่าระดับเตือนไม่เกิน ${d.watchGap} จุด · วันที่ราคายังไม่ปิดไม่นับในสถิติ · คำนวณใหม่ทุกครั้งที่ข้อมูลอัปเดต${d.missing?.length ? ` · ตอนนี้ยังโหลดข้อมูล ${d.missing.join(', ')} ไม่ได้` : ''} · ข้อมูลประกอบ ไม่ได้คิดในคะแนน</p>`;
 
     el('sth99-asset').value = one ? one.symbol : ALL;
+    if (one) drawSeries(one.symbol, L);
+    else destroyCharts();
     el('sth99-notify-btn')?.addEventListener('click', toggleNotify);
     el('sth99-hits')?.addEventListener('toggle', (e) => { hitsOpen = e.target.open; });
     notify(alerts);
     window.dispatchEvent(new CustomEvent('sth99:data', { detail: { d, level: L, asset: one ? one.symbol : ALL } }));
+  }
+
+  // ---------- chart for one asset: price with the level days pinned, and its STH ----------
+
+  function destroyCharts() {
+    if (priceChart) { priceChart.destroy(); priceChart = null; }
+    if (scoreChart) { scoreChart.destroy(); scoreChart = null; }
+  }
+
+  async function seriesOf(symbol) {
+    const c = seriesCache[symbol];
+    if (c && Date.now() - c.at < 5 * 60 * 1000) return c.data;
+    const res = await fetch(`/api/sth-series?symbol=${encodeURIComponent(symbol)}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    seriesCache[symbol] = { at: Date.now(), data };
+    return data;
+  }
+
+  // Shaded band from the level up to 100 and a dashed line at the level.
+  const levelBand = (L) => ({
+    id: 'sth99Level',
+    beforeDatasetsDraw(chart) {
+      const { ctx, chartArea: a, scales: { y } } = chart;
+      const top = y.getPixelForValue(100);
+      const at = y.getPixelForValue(L);
+      ctx.save();
+      ctx.fillStyle = cssVar('--band-buy');
+      ctx.fillRect(a.left, top, a.right - a.left, at - top);
+      ctx.strokeStyle = cssVar('--accent');
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(a.left, at);
+      ctx.lineTo(a.right, at);
+      ctx.stroke();
+      ctx.restore();
+    },
+  });
+
+  async function drawSeries(symbol, L) {
+    if (!window.Chart || !el('sth99-price')) return;
+    const msg = el('sth99-chart-msg');
+    let s;
+    try {
+      s = await seriesOf(symbol);
+    } catch (err) {
+      if (msg) msg.textContent = `โหลดกราฟไม่ได้: ${err.message}`;
+      return;
+    }
+    // The selection may have changed while loading.
+    if (asset !== symbol || level !== L || !el('sth99-price')) return;
+    destroyCharts();
+    const n = s.dates.length;
+    const lastIdx = n - 1; // the live day: its close is not final yet
+    const i0 = Math.max(0, n - RANGE_DAYS[range]);
+    const dates = s.dates.slice(i0);
+    const price = s.price.slice(i0);
+    const sth = s.sth.slice(i0);
+    // Pins: closes at or above the level, coloured by the next day's result.
+    const win = new Array(dates.length).fill(null);
+    const lose = new Array(dates.length).fill(null);
+    const wait = new Array(dates.length).fill(null);
+    const result = new Array(dates.length).fill(null);
+    let count = 0;
+    for (let k = 0; k < dates.length; k++) {
+      const i = i0 + k;
+      if (s.sth[i] == null || s.sth[i] < L || s.price[i] == null) continue;
+      count++;
+      if (i + 1 >= lastIdx || s.price[i + 1] == null) {
+        // today (not closed yet), or the next day's close is not final yet
+        wait[k] = s.price[i];
+        continue;
+      }
+      const r = (s.price[i + 1] / s.price[i] - 1) * 100;
+      result[k] = r;
+      (r > 1 ? win : lose)[k] = s.price[i];
+    }
+    if (msg) msg.textContent = count ? `ในช่วงที่แสดงมี ${count} วันที่ STH ถึง ${L} ขึ้นไป · ราคาและคะแนนของวันล่าสุดยังไม่ปิดวัน` : `ในช่วงที่แสดงยังไม่เคยมีวันที่ STH ถึง ${L}`;
+
+    const mode = range === 'all' ? 'all' : 'short';
+    const fixed = (axis) => { axis.width = 64; };
+    const pin = (data, color, label) => ({ label, data, showLine: false, pointRadius: 4.5, pointHoverRadius: 6, pointBackgroundColor: color, pointBorderColor: cssVar('--surface'), pointBorderWidth: 1, borderColor: color });
+
+    const pOpts = baseOptions(mode);
+    pOpts.scales.x.ticks.maxTicksLimit = 7;
+    pOpts.scales.y = { ...logPriceAxis(), afterFit: fixed };
+    pOpts.plugins.tooltip.callbacks.label = (item) => {
+      if (item.datasetIndex === 0) return ` ราคาปิด: ${fmtUsd(item.parsed.y)} · STH ${sth[item.dataIndex] == null ? '–' : sth[item.dataIndex].toFixed(1)}`;
+      const r = result[item.dataIndex];
+      return r == null ? ` 📍 STH ถึง ${L} — รอผลวันถัดไป` : ` 📍 STH ถึง ${L} → วันถัดไป ${fmtPct(r, 1)}`;
+    };
+    priceChart = new Chart(el('sth99-price'), {
+      type: 'line',
+      data: {
+        labels: dates,
+        datasets: [
+          { label: 'ราคา', data: price, ...lineStyle(cssVar('--price'), 1.25) },
+          pin(win, cssVar('--z-strong-buy'), 'ขึ้นเกิน 1%'),
+          pin(lose, cssVar('--z-strong-sell'), 'ไม่ถึง 1%'),
+          pin(wait, cssVar('--muted'), 'รอผล'),
+        ],
+      },
+      options: pOpts,
+      plugins: [crosshair, hoverSync],
+    });
+
+    const sOpts = baseOptions(mode);
+    sOpts.scales.x.ticks.maxTicksLimit = 7;
+    sOpts.scales.y = {
+      min: 0,
+      max: 100,
+      position: 'right',
+      afterFit: fixed,
+      grid: { color: cssVar('--grid') },
+      border: { display: false },
+      ticks: { color: cssVar('--muted'), stepSize: 25 },
+    };
+    sOpts.plugins.tooltip.callbacks.label = (item) => ` STH: ${item.parsed.y.toFixed(1)}${item.parsed.y >= L ? ` ≥ ${L}` : ''}`;
+    scoreChart = new Chart(el('sth99-score'), {
+      type: 'line',
+      data: { labels: dates, datasets: [{ label: 'STH', data: sth, ...lineStyle(cssVar('--sth'), 1.25) }] },
+      options: sOpts,
+      plugins: [levelBand(L), crosshair, hoverSync],
+    });
+    pair(priceChart, scoreChart);
   }
 
   // Level buttons, level-table rows, asset names and the asset picker (the
@@ -221,6 +372,15 @@
       if (!last) return;
       const pick = e.target.closest('.sth99-pick');
       if (pick) { setAsset(pick.dataset.asset === asset ? ALL : pick.dataset.asset); return; }
+      const rb = e.target.closest('[data-range]');
+      if (rb) {
+        if (!RANGE_DAYS[rb.dataset.range] || rb.dataset.range === range) return;
+        range = rb.dataset.range;
+        store.set(RANGE_KEY, range);
+        for (const b of body.querySelectorAll('[data-range]')) b.classList.toggle('on', b === rb);
+        if (asset !== ALL) drawSeries(asset, level);
+        return;
+      }
       const target = e.target.closest('[data-level]');
       if (!target) return;
       const l = Number(target.dataset.level);

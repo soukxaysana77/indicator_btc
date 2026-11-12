@@ -1,7 +1,8 @@
 'use strict';
 // Zero-dependency server: serves ./public and the JSON APIs
 // /api/indicators (BTC), /api/gold, /api/alts (overview), /api/coin?symbol=ETH,
-// /api/sth-alert (the STH ≥ 99 card, from all three), /api/paper (the paper-trading card),
+// /api/sth-alert (the STH ≥ 99 card, from all three), /api/sth-series?symbol= (one asset's
+// price and STH for that card's chart), /api/paper (the paper-trading card),
 // /api/predictions (the prediction log: GET, and POST / DELETE from this computer only).
 // Run: node server.js   (add --open to launch the browser)
 
@@ -15,7 +16,7 @@ const { buildGold, goldScoresIfClosedAt } = require('./lib/gold');
 const { buildAlts, coinScoresIfClosedAt } = require('./lib/alts');
 const { COINS } = require('./lib/coins');
 const { scoreIntraday, utcBarOf, goldBarOf } = require('./lib/intraday');
-const { buildSth99 } = require('./lib/sth99');
+const { buildSth99, assetsOf } = require('./lib/sth99');
 const { buildPaper, WINDOWS: PAPER_WINDOWS, DEFAULT_MA: PAPER_MA } = require('./lib/papertrade');
 const { buildPredictions, addPrediction, removePrediction } = require('./lib/predictions');
 
@@ -103,6 +104,28 @@ async function sth99Json() {
   const missing = kinds.filter((k) => !sets[k]);
   const json = JSON.stringify({ ...card, missing, generatedAt: new Date().toISOString() });
   sth99Memo = { sets, json };
+  return json;
+}
+
+// /api/sth-series?symbol=XRP — one asset's daily closes and STH score, for the
+// chart in the STH card when a single asset is picked (loaded only then).
+const seriesMemo = new Map();
+
+async function sthSeriesJson(symbolRaw) {
+  const symbol = String(symbolRaw || '').toUpperCase().slice(0, 10);
+  const sets = await allSets();
+  const hit = seriesMemo.get(symbol);
+  if (hit && ['btc', 'gold', 'alts'].every((k) => hit.sets[k] === sets[k])) return hit.json;
+  const a = assetsOf(sets).find((x) => x.symbol === symbol);
+  if (!a) return null;
+  const json = JSON.stringify({
+    symbol,
+    dates: a.dates,
+    price: a.price.map((v) => (v == null ? null : round(v, 6))),
+    // cut, not rounded, so 98.96 never shows as 99.0
+    sth: a.sth.map((v) => (v == null ? null : Math.floor(v * 10) / 10)),
+  });
+  seriesMemo.set(symbol, { sets, json });
   return json;
 }
 
@@ -239,6 +262,18 @@ const server = http.createServer(async (req, res) => {
       console.error(err);
       send(req, res, 500, JSON.stringify({ error: err.message }), MIME['.json']);
     });
+    return;
+  }
+
+  if (url.pathname === '/api/sth-series') {
+    try {
+      const json = await sthSeriesJson(url.searchParams.get('symbol'));
+      if (json == null) send(req, res, 404, JSON.stringify({ error: 'ไม่รู้จักสินทรัพย์นี้' }), MIME['.json']);
+      else send(req, res, 200, json, MIME['.json']);
+    } catch (err) {
+      console.error(err);
+      send(req, res, 500, JSON.stringify({ error: err.message }), MIME['.json']);
+    }
     return;
   }
 

@@ -324,6 +324,16 @@ table.sth99-now .pill { margin-left: 6px; }
 .sth99-seg button { min-width: 34px; padding: 4px 7px; }
 .linklike { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
 .linklike:hover { color: var(--accent); }
+.sth99-chart { margin: 4px 0 14px; }
+.sth99-chart .chart-title { justify-content: space-between; }
+.chart-sth99-price { height: 280px; }
+.chart-sth99-score { height: 150px; }
+.sth99-legend { flex-wrap: wrap; gap: 4px 12px; }
+.sth99-legend > span { white-space: nowrap; }
+.sth99-dot { display: inline-block; width: 9px; height: 9px; margin-right: 5px; border-radius: 50%; vertical-align: middle; }
+.sth99-dot.win { background: var(--z-strong-buy); }
+.sth99-dot.lose { background: var(--z-strong-sell); }
+.sth99-dot.wait { background: var(--muted); }
 table.sth99-now tr.sth99-sel td { background: var(--surface-2); }
 table.sth99-now tr.sth99-sel td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 table.sth99-levels-table td, table.sth99-levels-table th { padding: 6px 8px; }
