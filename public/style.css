@@ -327,6 +327,25 @@ table.sth99-levels-table tr[data-level]:hover td { background: var(--surface-2);
 .sth99-hits > summary { cursor: pointer; font-size: 13px; color: var(--text-2); margin-bottom: 6px; }
 table.sth99-past td, table.sth99-past th { padding: 5px 8px; font-size: 12px; white-space: nowrap; }
 
+/* "สมุดจดคำทำนาย" page (public/predictions.js) */
+.pred-list { display: grid; gap: 10px; }
+.pred-item { padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid var(--z-neutral); border-radius: 10px; background: var(--surface-2); }
+.pred-item.pred-hit { border-left-color: var(--z-strong-buy); }
+.pred-item.pred-miss { border-left-color: var(--z-strong-sell); }
+.pred-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.pred-claim { flex: 1; min-width: 200px; font-size: 15px; }
+.pred-del { padding: 2px 8px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+.pred-del:hover { border-color: var(--border); color: var(--down); }
+.pred-who, .pred-result { margin-top: 4px; font-size: 13px; color: var(--text-2); }
+.pred-note-text { margin-top: 4px; font-size: 13px; color: var(--muted); font-style: italic; }
+.pred-result { color: var(--text); }
+.pred-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+.pred-form .field { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; }
+.pred-form .field .coin-name { font-size: 11px; }
+.pred-form .pred-note { flex: 1 1 260px; }
+.pred-form .pred-note input { width: 100%; }
+table.lined.pred-table td, table.lined.pred-table th { padding: 7px 10px; white-space: normal; }
+
 /* "สรุปวันนี้" at the top of the BTC page (public/today.js) */
 .today { padding: 16px 18px; }
 .today-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }

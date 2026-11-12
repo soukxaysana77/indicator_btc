@@ -5,6 +5,9 @@ cache/
 sosovalue-key.txt
 sosovalue-key.txt.txt
 
+# Your own records (prediction log): stay on this computer
+userdata/
+
 # Local tool settings
 .claude/
 

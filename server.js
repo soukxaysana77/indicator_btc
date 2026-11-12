@@ -1,7 +1,8 @@
 'use strict';
 // Zero-dependency server: serves ./public and the JSON APIs
 // /api/indicators (BTC), /api/gold, /api/alts (overview), /api/coin?symbol=ETH,
-// /api/sth-alert (the STH ≥ 99 card, from all three), /api/paper (the paper-trading card).
+// /api/sth-alert (the STH ≥ 99 card, from all three), /api/paper (the paper-trading card),
+// /api/predictions (the prediction log: GET, and POST / DELETE from this computer only).
 // Run: node server.js   (add --open to launch the browser)
 
 const http = require('http');
@@ -16,6 +17,7 @@ const { COINS } = require('./lib/coins');
 const { scoreIntraday, utcBarOf, goldBarOf } = require('./lib/intraday');
 const { buildSth99 } = require('./lib/sth99');
 const { buildPaper, WINDOWS: PAPER_WINDOWS, DEFAULT_MA: PAPER_MA } = require('./lib/papertrade');
+const { buildPredictions, addPrediction, removePrediction } = require('./lib/predictions');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -127,6 +129,49 @@ async function paperJson(query) {
   return json;
 }
 
+// /api/predictions — the "สมุดจดคำทำนาย" page. GET lists the calls with their
+// results; POST adds one, DELETE ?id= removes one. The file is written only for
+// requests from this computer, even if the server is reachable on the network.
+async function allSets() {
+  const kinds = ['btc', 'gold', 'alts'];
+  const got = await Promise.allSettled(kinds.map(recentData));
+  return Object.fromEntries(kinds.map((k, i) => [k, got[i].status === 'fulfilled' ? got[i].value : null]));
+}
+// Behind a host's proxy (e.g. the public copy on Render) every request carries
+// X-Forwarded-For, so the log there is read-only for everyone.
+const isLocal = (req) => !req.headers['x-forwarded-for'] && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+function readBody(req, limit = 8 * 1024) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { reject(new Error('ข้อมูลยาวเกินไป')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+async function handlePredictions(req, res, url) {
+  const json = (status, body) => send(req, res, status, JSON.stringify(body), MIME['.json']);
+  try {
+    if (req.method === 'GET') return json(200, buildPredictions(await allSets(), { round }));
+    if (!isLocal(req)) return json(403, { error: 'แก้สมุดได้จากเครื่องที่รันเว็บเท่านั้น' });
+    if (req.method === 'POST') {
+      const entry = addPrediction(JSON.parse(await readBody(req) || '{}'), await allSets());
+      return json(200, { ok: true, entry });
+    }
+    if (req.method === 'DELETE') {
+      removePrediction(String(url.searchParams.get('id') || ''));
+      return json(200, { ok: true });
+    }
+    return json(405, { error: 'method not allowed' });
+  } catch (err) {
+    return json(400, { error: err.message });
+  }
+}
+
 function send(req, res, status, body, type) {
   const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache' };
   if (/\bgzip\b/.test(req.headers['accept-encoding'] || '') && body.length > 1024) {
@@ -194,6 +239,11 @@ const server = http.createServer(async (req, res) => {
       console.error(err);
       send(req, res, 500, JSON.stringify({ error: err.message }), MIME['.json']);
     });
+    return;
+  }
+
+  if (url.pathname === '/api/predictions') {
+    handlePredictions(req, res, url);
     return;
   }
 

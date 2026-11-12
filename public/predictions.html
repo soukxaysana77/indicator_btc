@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>สมุดจดคำทำนาย — ใครทำนายแม่น</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%231baf7a'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>?</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <script src="common.js" defer></script>
+  <script src="predictions.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo logo-coin" aria-hidden="true">?</span>
+      <div>
+        <h1>สมุดจดคำทำนาย</h1>
+        <p class="sub">จดคำทำนายราคาจากคลิปต่าง ๆ แล้วให้เว็บเช็คกับราคาปิดจริงทุกวันว่าถูกหรือผิด จะได้รู้ว่าใครแม่นจริง</p>
+        <nav class="nav" aria-label="เลือกหน้า">
+          <a href="/">₿ Bitcoin</a>
+          <a href="/gold.html">ทองคำ</a>
+          <a href="/alts.html">เหรียญอื่น</a>
+          <a href="/predictions.html" class="on" aria-current="page">คำทำนาย</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section class="stats" id="pred-stats" aria-label="สรุป"></section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>คำทำนายทั้งหมด <span class="count" id="pred-count"></span></h2>
+          <p class="muted">รอผลอยู่ด้านบน (ใกล้ครบกำหนดก่อน) แล้วตามด้วยที่รู้ผลแล้ว · เช็คจากราคาปิดรายวัน</p>
+        </div>
+        <div class="seg" id="pred-filter" role="group" aria-label="กรองตามผล">
+          <button type="button" data-v="all" class="on">ทั้งหมด</button>
+          <button type="button" data-v="open">รอผล</button>
+          <button type="button" data-v="hit">ถูก</button>
+          <button type="button" data-v="miss">ผิด</button>
+        </div>
+      </div>
+      <div class="pred-list" id="pred-list"><div class="skeleton">กำลังโหลด…</div></div>
+    </section>
+
+    <section class="panel">
+      <h2>ใครแม่นแค่ไหน</h2>
+      <p class="muted">นับเฉพาะคำทำนายที่รู้ผลแล้ว (ถูก + ผิด) · ตัวอย่างยังน้อย อย่าเพิ่งตัดสินจาก 1–2 ครั้ง</p>
+      <div class="table-wrap" id="pred-sources"></div>
+    </section>
+
+    <section class="panel" id="pred-add">
+      <h2>จดคำทำนายใหม่</h2>
+      <form class="pred-form" id="pred-form" autocomplete="off">
+        <label class="field">ใคร / ช่อง <input type="text" name="source" list="pred-source-list" required maxlength="120" placeholder="เช่น TonHor Palakorn"></label>
+        <datalist id="pred-source-list"></datalist>
+        <label class="field">ลิงก์คลิป (ถ้ามี) <input type="url" name="link" maxlength="300" placeholder="https://www.youtube.com/…"></label>
+        <label class="field">วันที่พูด <input type="date" name="said" required></label>
+        <label class="field">สินทรัพย์ <select name="asset" id="pred-asset"></select></label>
+        <label class="field">ทำนายว่า
+          <select name="kind">
+            <option value="above">ขึ้นไปถึง</option>
+            <option value="below">ลงไปถึง</option>
+          </select>
+        </label>
+        <label class="field">ราคาเป้า $ <input type="number" name="target" required min="0" step="any" placeholder="100000"></label>
+        <label class="field">ภายในวันที่ <input type="date" name="by"> <span class="coin-name">(เว้นว่าง = ไม่ระบุ)</span></label>
+        <label class="field pred-note">หมายเหตุ <input type="text" name="note" maxlength="300" placeholder="เช่น พูดที่นาที 20:40 ว่า…"></label>
+        <button type="submit" class="btn">บันทึก</button>
+        <span class="coin-name" id="pred-form-msg" aria-live="polite"></span>
+      </form>
+      <p class="note">* <b>ถูก</b> = มีวันไหนราคาปิดถึงเป้าก่อนหรือในวันครบกำหนด · <b>ผิด</b> = เลยวันครบกำหนดแล้วยังไม่ถึง · <b>รอผล</b> = ยังไม่ครบกำหนด (หรือไม่ได้ระบุวัน) · ใช้ราคาปิดรายวัน (คริปโตปิด 07:00 น.) ถ้าราคาแตะเป้าแค่ระหว่างวันแล้วร่วงกลับจะไม่นับ · บันทึกเก็บในไฟล์ <code>userdata/predictions.json</code> บนเครื่องนี้ ไม่ขึ้น GitHub · แก้ได้จากเครื่องที่รันเว็บเท่านั้น</p>
+    </section>
+  </main>
+</body>
+</html>
