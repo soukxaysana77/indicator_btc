@@ -403,6 +403,22 @@ table.lined.paper-log td, table.lined.paper-log th, table.lined.paper-bt td, tab
   table.paper-log .coin-name, table.paper-bt .coin-name { font-size: 11px; }
 }
 
+/* "รอบของ BTC" panel (public/cycles.js) */
+.chart-cycles { height: 340px; }
+.cycles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; margin: 14px 0; }
+.chart-cycles-small { height: 220px; }
+.cycles-grid .chart-title { min-height: 2.6em; align-items: flex-start; }
+.cycles-grid .legend { flex-wrap: wrap; gap: 2px 8px; font-size: 12px; }
+.cycles-grid .key { margin-left: 0; margin-right: 4px; vertical-align: middle; }
+table.lined.cycles-table td, table.lined.cycles-table th { padding: 7px 10px; }
+@media (max-width: 640px) {
+  table.lined.cycles-table td, table.lined.cycles-table th { padding: 6px 7px; font-size: 13px; }
+  table.lined.cycles-table th { white-space: normal; }
+  table.lined.cycles-table .coin-name { font-size: 11px; }
+  table.lined.cycles-table .cy-sub { display: none; }
+  table.lined.cycles-table .pill { display: none; }
+}
+
 /* Halving panel: where today sits in the ~4-year cycle */
 .chart-halving { height: 340px; }
 .hv-table-wrap { margin-top: 16px; }

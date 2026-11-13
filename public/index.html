@@ -15,6 +15,7 @@
   <script src="backtest.js" defer></script>
   <script src="seasonal.js" defer></script>
   <script src="halving.js" defer></script>
+  <script src="cycles.js" defer></script>
   <script src="credit.js" defer></script>
   <script src="etf.js" defer></script>
   <script src="realized.js" defer></script>
@@ -298,6 +299,40 @@
       <div class="chart-wrap chart-halving"><canvas id="chart-halving" aria-label="กราฟราคา BTC หลัง halving แต่ละรอบ เทียบกับราคาวัน halving"></canvas></div>
       <div class="table-wrap hv-table-wrap" id="halving-table"></div>
       <p class="note" id="halving-note"></p>
+    </section>
+
+    <section class="panel" id="cycles-panel" data-nav="รอบของ BTC" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>รอบของ BTC: ยอดเล็กลง ร่วงตื้นขึ้น กลับไปทำ New High เร็วขึ้น</h2>
+          <p class="muted">เทียบทุกรอบ 4 ปีจากราคาปิดจริง — ยอดของรอบ = ราคาปิดสูงสุดภายใน 2 ปีหลัง halving · ก้น = ราคาปิดต่ำสุดหลังยอดจนถึง halving ครั้งถัดไป</p>
+        </div>
+        <div class="seg" id="cycles-view" role="group" aria-label="นับรอบจากจุดไหน">
+          <button type="button" data-v="low" class="on">นับจากก้น</button>
+          <button type="button" data-v="top">นับจากยอด</button>
+        </div>
+      </div>
+      <p class="advice" id="cycles-summary"></p>
+      <div class="chart-title"><span id="cycles-main-title">แต่ละรอบนับจากก้นของรอบ</span> <span class="hv-keys" id="cycles-legend"></span></div>
+      <div class="chart-wrap chart-cycles"><canvas id="chart-cycles" aria-label="กราฟเทียบราคา BTC แต่ละรอบซ้อนกัน"></canvas></div>
+      <div class="cycles-grid">
+        <div>
+          <div class="chart-title">① ยอดเล็กลง <span class="legend"><span class="key key-lth"></span>ยอดใหม่ ÷ ยอดเดิม <span class="key key-macro"></span>ยอด ÷ ก้นก่อนหน้า</span></div>
+          <div class="chart-wrap chart-cycles-small"><canvas id="chart-cycles-1" aria-label="กราฟแท่ง ยอดของแต่ละรอบสูงกว่ายอดเดิมกี่เท่า"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-title">② ร่วงตื้นขึ้น (จากยอดถึงก้น) <span class="coin-name">* = รอบนี้ ถึงตอนนี้</span></div>
+          <div class="chart-wrap chart-cycles-small"><canvas id="chart-cycles-2" aria-label="กราฟแท่ง แต่ละรอบร่วงจากยอดถึงก้นกี่เปอร์เซ็นต์"></canvas></div>
+        </div>
+        <div>
+          <div class="chart-title">③ กี่วันกลับไปทำ New High (วัน) <span class="legend"><span class="key key-lth"></span>ยอดเดิม→NH <span class="key key-macro"></span>ก้น→NH <span class="key key-smart"></span>ขาขึ้น ก้น→ยอด</span></div>
+          <div class="chart-wrap chart-cycles-small"><canvas id="chart-cycles-3" aria-label="กราฟแท่ง จำนวนวันจากยอดเดิมและจากก้นจนทำ New High เทียบกับความยาวขาขึ้น"></canvas></div>
+        </div>
+      </div>
+      <div class="stats" id="cycles-stats"></div>
+      <div class="table-wrap" id="cycles-table"></div>
+      <p class="note">* <b>วิธีอ่าน:</b> ① แท่งสั้นลงทุกรอบ = แต่ละรอบขึ้นได้น้อยลง · ② แท่งสั้นลง = ร่วงน้อยลง · ③ แท่งสีน้ำเงินและเขียวสั้นลง = กลับไปเกินยอดเดิมเร็วขึ้น แต่แท่งสีส้ม (ขาขึ้นจากก้นถึงยอดของรอบ) ยาวเท่าเดิมราว 1,060 วัน แปลว่าจังหวะรอบ 4 ปียังอยู่ ที่เปลี่ยนคือขนาดของการขึ้นลง · แท่งสีเทา = รอบนี้ยังไม่ถึง (นับไปแล้วกี่วัน) ·
+        กล่อง "ถ้า…แบบเดิม" คิดจากแนวโน้มของแค่ 3–4 รอบ ใช้เป็นภาพประกอบ ไม่ใช่คำทำนาย รอบหน้าอาจไม่เป็นแบบนี้ก็ได้ · ข้อมูลเริ่มปี 2012 จึงไม่มีตัวเลขเทียบรอบก่อนหน้าของรอบ 2013 · คำนวณใหม่ทุกครั้งที่ข้อมูลอัปเดต</p>
     </section>
 
     <section class="panel" id="season-panel" data-nav="ช่วงเดียวกันทุกปี">
