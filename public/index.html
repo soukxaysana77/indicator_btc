@@ -16,6 +16,7 @@
   <script src="seasonal.js" defer></script>
   <script src="halving.js" defer></script>
   <script src="cycles.js" defer></script>
+  <script src="forecast.js" defer></script>
   <script src="credit.js" defer></script>
   <script src="etf.js" defer></script>
   <script src="realized.js" defer></script>
@@ -333,6 +334,27 @@
       <div class="table-wrap" id="cycles-table"></div>
       <p class="note">* <b>วิธีอ่าน:</b> ① แท่งสั้นลงทุกรอบ = แต่ละรอบขึ้นได้น้อยลง · ② แท่งสั้นลง = ร่วงน้อยลง · ③ แท่งสีน้ำเงินและเขียวสั้นลง = กลับไปเกินยอดเดิมเร็วขึ้น แต่แท่งสีส้ม (ขาขึ้นจากก้นถึงยอดของรอบ) ยาวเท่าเดิมราว 1,060 วัน แปลว่าจังหวะรอบ 4 ปียังอยู่ ที่เปลี่ยนคือขนาดของการขึ้นลง · แท่งสีเทา = รอบนี้ยังไม่ถึง (นับไปแล้วกี่วัน) ·
         กล่อง "ถ้า…แบบเดิม" คิดจากแนวโน้มของแค่ 3–4 รอบ ใช้เป็นภาพประกอบ ไม่ใช่คำทำนาย รอบหน้าอาจไม่เป็นแบบนี้ก็ได้ · ข้อมูลเริ่มปี 2012 จึงไม่มีตัวเลขเทียบรอบก่อนหน้าของรอบ 2013 · คำนวณใหม่ทุกครั้งที่ข้อมูลอัปเดต</p>
+    </section>
+
+    <section class="panel" id="forecast-panel" data-nav="คาดการณ์รอบหน้า" hidden>
+      <div class="panel-head">
+        <div>
+          <h2>คาดการณ์รอบหน้า: New High, ยอดถัดไป และก้นครั้งหน้า (±10%)</h2>
+          <p class="muted">ต่อแนวโน้มของรอบเดิมไปข้างหน้า — ถ้ารูปแบบเดิมยังอยู่ (ยอดเล็กลง ร่วงตื้นขึ้น เวลาเท่าเดิม) รอบหน้าน่าจะอยู่ประมาณนี้ · กล่องสีรอบจุด = กรอบ ±10% ของราคา และ ±10% ของเวลา</p>
+        </div>
+      </div>
+      <div class="stats" id="forecast-stats"></div>
+      <div class="chart-title forecast-title">
+        <span>ราคา BTC (สเกล log) กับยอด ▲ และก้น ▼ ของทุกรอบ · เส้นประ = แนวยอด / แนวก้น ต่อไปถึงรอบหน้า · ○ = ค่าที่คาด พร้อมกรอบ ±10%</span>
+        <div class="seg" id="forecast-range" role="group" aria-label="ช่วงเวลาของกราฟ">
+          <button type="button" data-v="near" class="on">2022–2031</button>
+          <button type="button" data-v="all">ทั้งหมด</button>
+        </div>
+      </div>
+      <div class="chart-wrap chart-forecast"><canvas id="chart-forecast" aria-label="กราฟคาดการณ์ยอดและก้นของ BTC รอบหน้า พร้อมกรอบบวกลบ 10 เปอร์เซ็นต์"></canvas></div>
+      <h3 class="subhead">คิดมาจากอะไร (2 วิธีต่อค่า แล้วใช้ค่ากลาง)</h3>
+      <div class="table-wrap" id="forecast-methods"></div>
+      <p class="note" id="forecast-note"></p>
     </section>
 
     <section class="panel" id="season-panel" data-nav="ช่วงเดียวกันทุกปี">

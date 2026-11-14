@@ -106,6 +106,7 @@ function render() {
     () => window.renderBacktest?.(d),
     () => window.renderHalving?.(d),
     () => window.renderCycles?.(d),
+    () => window.renderForecast?.(d),
     () => window.renderSeason?.(d),
     renderIndicators,
     renderSources,
@@ -1026,7 +1027,7 @@ bindSeg('horizon', 'horizon', renderIndicators);
 bindSeg('view', 'view', renderIndicators);
 $('#refresh').addEventListener('click', () => load());
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-  if (state.data) { renderCharts(); renderCostBasis(); renderMacro(); window.renderCredit?.(state.data); renderStablecoins(); window.renderBacktest?.(state.data); window.renderHalving?.(state.data); window.renderCycles?.(state.data); window.renderSeason?.(state.data); window.renderEtf?.(state.data); window.renderRealized?.(state.data); }
+  if (state.data) { renderCharts(); renderCostBasis(); renderMacro(); window.renderCredit?.(state.data); renderStablecoins(); window.renderBacktest?.(state.data); window.renderHalving?.(state.data); window.renderCycles?.(state.data); window.renderForecast?.(state.data); window.renderSeason?.(state.data); window.renderEtf?.(state.data); window.renderRealized?.(state.data); }
 });
 
 load();

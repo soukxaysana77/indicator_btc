@@ -320,4 +320,5 @@
 
   bind();
   window.renderCycles = render;
+  window.btcCyclesOf = cyclesOf; // shared with forecast.js
 })();

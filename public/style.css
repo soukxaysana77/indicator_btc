@@ -403,6 +403,16 @@ table.lined.paper-log td, table.lined.paper-log th, table.lined.paper-bt td, tab
   table.paper-log .coin-name, table.paper-bt .coin-name { font-size: 11px; }
 }
 
+/* "คาดการณ์รอบหน้า" panel (public/forecast.js) */
+.chart-forecast { height: 420px; }
+.forecast-title { justify-content: space-between; }
+table.lined.forecast-table td, table.lined.forecast-table th { padding: 7px 10px; vertical-align: top; }
+table.lined.forecast-table td { white-space: normal; min-width: 90px; }
+@media (max-width: 640px) {
+  .chart-forecast { height: 340px; }
+  table.lined.forecast-table td, table.lined.forecast-table th { font-size: 13px; padding: 6px 7px; }
+}
+
 /* "รอบของ BTC" panel (public/cycles.js) */
 .chart-cycles { height: 340px; }
 .cycles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; margin: 14px 0; }
