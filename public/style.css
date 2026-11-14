@@ -406,6 +406,16 @@ table.lined.paper-log td, table.lined.paper-log th, table.lined.paper-bt td, tab
 /* "คาดการณ์รอบหน้า" panel (public/forecast.js) */
 .chart-forecast { height: 420px; }
 .forecast-title { justify-content: space-between; }
+.liq-confirm { margin: 4px 0 16px; padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid var(--z-neutral); border-radius: 10px; background: var(--surface-2); }
+.liq-confirm.liq-ok { border-left-color: var(--z-strong-buy); }
+.liq-confirm.liq-near { border-left-color: var(--accent); }
+.liq-confirm.liq-no { border-left-color: var(--z-strong-sell); }
+.liq-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 8px; }
+.liq-icon { font-size: 22px; line-height: 1.2; }
+.liq-title { font-size: 15px; }
+.liq-sub { margin-top: 2px; font-size: 13px; color: var(--text-2); }
+.liq-confirm p.coin-name { margin: 8px 0 0; }
+table.lined.liq-table td, table.lined.liq-table th { padding: 6px 10px; }
 table.lined.forecast-table td, table.lined.forecast-table th { padding: 7px 10px; vertical-align: top; }
 table.lined.forecast-table td { white-space: normal; min-width: 90px; }
 @media (max-width: 640px) {

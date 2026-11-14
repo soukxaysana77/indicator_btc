@@ -134,7 +134,82 @@
       ${lowFinal ? '' : `ก้นรอบนี้ (${fmtUsd(f.lastLow)} เมื่อ ${fmtDate(f.cur.lowDate)}) ยังไม่ยืนยัน ถ้าราคาลงต่ำกว่านั้น ทุกตัวเลขจะเลื่อนตาม · `}
       ยอด = ราคาปิดสูงสุดภายใน 2 ปีหลัง halving · ก้น = ราคาปิดต่ำสุดหลังยอด · คำนวณใหม่ทุกครั้งที่ข้อมูลอัปเดต`;
 
+    renderLiquidity(d, f);
     renderChart(h, f);
+  }
+
+  // ---------- does global liquidity confirm the cycle low? ----------
+  // Rule from the past lows: liquidity's 13-week change was near its worst at
+  // the low and turned positive 14–35 days later (2015, 2018, 2022); price never
+  // went below that low again. The macro chart's lead line is that change
+  // shifted 13 weeks forward, so shifting it back gives the change on each date.
+  function renderLiquidity(d, f) {
+    const box = el('forecast-liq');
+    const ch = d.macro?.chart;
+    if (!box) return;
+    box.hidden = !ch?.dates?.length;
+    if (box.hidden) return;
+    const raw = ch.dates
+      .map((x, i) => ({ d: new Date(ms(x) - 91 * DAY).toISOString().slice(0, 10), v: ch.liqLead[i] }))
+      .filter((r) => r.v != null);
+    const latest = raw[raw.length - 1];
+    const h = d.history;
+    const idx = new Map(h.dates.map((x, i) => [x, i]));
+    const priceOn = (date) => {
+      for (let k = 0; k < 7; k++) {
+        const i = idx.get(new Date(ms(date) - k * DAY).toISOString().slice(0, 10));
+        if (i != null) return h.price[i];
+      }
+      return null;
+    };
+    const today = h.dates[h.dates.length - 1];
+    const lows = f.all.map((c) => ({ date: c.lowDate, price: c.lowPrice, done: c.done }))
+      .filter((l) => l.date >= raw[0].d);
+    const rows = lows.map((l) => {
+      const conf = raw.find((r) => r.d > l.date && r.v > 0);
+      const atLow = raw.filter((r) => r.d <= l.date).pop();
+      const out = { ...l, atLow: atLow?.v ?? null, conf: conf?.d ?? null, days: conf ? Math.round((ms(conf.d) - ms(l.date)) / DAY) : null };
+      if (conf) {
+        const p0 = priceOn(conf.d);
+        const p12 = ms(conf.d) + 365 * DAY <= ms(today) ? priceOn(new Date(ms(conf.d) + 365 * DAY).toISOString().slice(0, 10)) : null;
+        out.p0 = p0;
+        out.year = p12 && p0 ? (p12 / p0 - 1) * 100 : null;
+        let min = Infinity;
+        for (let i = idx.get(conf.d) ?? h.dates.length; i < h.dates.length; i++) min = Math.min(min, h.price[i]);
+        out.broke = min < l.price;
+      }
+      return out;
+    });
+    const cur = rows[rows.length - 1];
+    const past = rows.slice(0, -1).filter((r) => r.conf);
+    const maxDays = past.length ? Math.max(...past.map((r) => r.days)) : null;
+    const since = Math.round((ms(today) - ms(cur.date)) / DAY);
+    let state;
+    if (cur.conf) state = { cls: 'ok', icon: '✅', text: `ยืนยันแล้ว เมื่อ ${fmtDate(cur.conf)} (${cur.days} วันหลังก้น)` };
+    else if (latest.v > -0.5) state = { cls: 'near', icon: '🟡', text: 'ใกล้ยืนยัน — สภาพคล่องเกือบกลับเป็นบวก' };
+    else state = { cls: 'no', icon: '❌', text: 'ยังไม่ยืนยัน' };
+    const late = !cur.conf && maxDays != null && since > maxDays
+      ? ` · ผ่านก้นมาแล้ว ${since} วัน <b>นานกว่าทุกรอบที่ผ่านมา</b> (เคยยืนยันภายใน ${Math.min(...past.map((r) => r.days))}–${maxDays} วัน) ก้นนี้จึงอาจยังไม่ใช่ก้นจริง`
+      : ` · ผ่านก้นมาแล้ว ${since} วัน`;
+    const pipe = d.macro.stats?.pipeline;
+    window.dispatchEvent(new CustomEvent('liq:data', { detail: { ...state, latest: latest.v, since, lowDate: cur.date, confirmed: cur.conf } }));
+    box.className = `liq-confirm liq-${state.cls}`;
+    box.innerHTML = `
+      <div class="liq-head"><span class="liq-icon">${state.icon}</span><div>
+        <div class="liq-title">สภาพคล่องยืนยันก้นแล้วหรือยัง: <b>${state.text}</b></div>
+        <div class="liq-sub">สภาพคล่องโลก 13 สัปดาห์ล่าสุด <b>${fmtPct(latest.v, 1)}</b> (ข้อมูลถึง ${fmtDate(latest.d)}) — ต้องกลับเป็นบวกหลังก้น ${fmtDate(cur.date)} (${fmtUsd(cur.price)})${cur.conf ? '' : late}${pipe ? ` · ผลต่อราคาราว 13 สัปดาห์ข้างหน้า (ถึง ${fmtDate(pipe.until)}) ยังเป็นบวก ${pipe.positive}/${pipe.weeks} สัปดาห์` : ''}</div>
+      </div></div>
+      <div class="table-wrap"><table class="lined liq-table">
+        <thead><tr><th>ก้นของรอบ</th><th class="num">สภาพคล่อง ณ ก้น</th><th class="num">ยืนยันเมื่อ</th><th class="num">ราคาตอนยืนยัน</th><th class="num">1 ปีต่อมา</th><th class="num">หลังจากนั้นต่ำกว่าก้นไหม</th></tr></thead>
+        <tbody>${[...rows].reverse().map((r) => `<tr${r === cur ? ' class="now"' : ''}>
+          <td>${fmtDate(r.date)}<div class="coin-name">${fmtUsd(r.price)}${r.done ? '' : ' · รอบนี้ (ยังไม่ยืนยัน)'}</div></td>
+          <td class="num">${r.atLow == null ? '–' : fmtPct(r.atLow, 1)}</td>
+          <td class="num">${r.conf ? `${fmtDate(r.conf)}<div class="coin-name">${r.days} วันหลังก้น</div>` : '<b>ยังไม่ยืนยัน</b>'}</td>
+          <td class="num">${r.p0 ? `${fmtUsd(r.p0)}<div class="coin-name">${fmtPct((r.p0 / r.price - 1) * 100, 0)} จากก้น</div>` : '–'}</td>
+          <td class="num">${r.year == null ? '–' : `<span class="${r.year >= 0 ? 'up' : 'down'}">${fmtPct(r.year, 0)}</span>`}</td>
+          <td class="num">${r.conf ? (r.broke ? '<span class="down">ต่ำกว่า</span>' : 'ไม่เคย') : '–'}</td>
+        </tr>`).join('')}</tbody></table></div>
+      <p class="coin-name">กติกา: หลังก้นของรอบ ถ้าการเปลี่ยนแปลง 13 สัปดาห์ของสภาพคล่องโลก (งบดุล Fed − TGA − RRP + ECB + BoJ จากแผงสภาพคล่องโลก) กลับมาเป็นบวก = ยืนยันก้น · รอบก่อน ๆ ใช้ได้ทุกครั้ง แต่มีแค่ ${past.length} รอบ และสภาพคล่องรายสัปดาห์ขึ้นลงบ่อย ใช้ประกอบ ไม่ใช่สัญญาณซื้อขาย · ถ้าราคาลงต่ำกว่าก้นเดิม ก้นจะเลื่อนเป็นจุดใหม่และกล่องนี้นับใหม่เอง</p>`;
   }
 
   // ---------- the chart ----------

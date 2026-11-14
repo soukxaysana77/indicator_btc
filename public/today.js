@@ -7,7 +7,7 @@
 
 (() => {
   const el = (id) => document.getElementById(id);
-  const got = { btc: null, sth: null, paper: null };
+  const got = { btc: null, sth: null, paper: null, liq: null };
   const TH_MONTH_YEAR = new Intl.DateTimeFormat('th-TH-u-ca-gregory', { month: 'short', year: 'numeric', timeZone: 'UTC' });
   const TH_CLOCK = new Intl.DateTimeFormat('th-TH', { hour: '2-digit', minute: '2-digit' });
   const symName = (s) => (s === 'GOLD' ? 'ทองคำ' : s);
@@ -67,6 +67,10 @@
     const bc = d.bottomCheck?.now;
     if (bc) items.push(item('#bottom-panel', 'เช็คลิสต์จุดต่ำสุด', bc.recovery ? `ติ๊ก ${bc.ticks.count}/3` : 'ไม่อยู่ในช่วงฟื้นตัว', bc.recovery ? 'อยู่ในช่วงฟื้นตัวหลังร่วงหนัก' : 'เช็คลิสต์ยังไม่ใช้', bc.recovery && bc.ticks.count === 3 ? 'strong-buy' : 'na'));
 
+    // Has global liquidity turned up since the cycle low? (forecast.js)
+    const lq = got.liq;
+    if (lq) items.push(item('#forecast-panel', 'สภาพคล่องยืนยันก้น', `${lq.icon} ${lq.confirmed ? 'ยืนยันแล้ว' : lq.cls === 'near' ? 'ใกล้ยืนยัน' : 'ยังไม่ยืนยัน'}`, lq.confirmed ? `เมื่อ ${fmtDate(lq.confirmed)}` : `สภาพคล่อง 13 สัปดาห์ ${fmtPct(lq.latest, 1)} · ผ่านก้นมา ${lq.since} วัน`, lq.confirmed ? 'strong-buy' : lq.cls === 'near' ? 'neutral' : 'strong-sell'));
+
     const hv = d.halving;
     const hDates = d.history?.dates;
     if (hv && hDates?.length) {
@@ -108,4 +112,5 @@
   window.addEventListener('btc:data', (e) => { got.btc = e.detail; render(); });
   window.addEventListener('sth99:data', (e) => { got.sth = e.detail; render(); });
   window.addEventListener('paper:data', (e) => { got.paper = e.detail; render(); });
+  window.addEventListener('liq:data', (e) => { got.liq = e.detail; render(); });
 })();
